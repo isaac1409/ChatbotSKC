@@ -1,0 +1,7 @@
+# Ignorar el archivo de variables de entorno
+.env
+
+# Ignorar carpetas de Python
+__pycache__/
+venv/
+.vscode/
