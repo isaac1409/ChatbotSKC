@@ -1,12 +1,14 @@
-1. Dentro de la carpeta del proyecto, ejecutar
+1. Renombrar proyecto.env a .env
+
+2. Dentro de la carpeta del proyecto, ejecutar
 docker compose up -d
 
-2. Crear la base de datos para n8n
+3. Crear la base de datos para n8n
 docker exec -it postgres psql -U admin
 CREATE DATABASE n8ndb;
 \q
 
-3. Para mandar llamar localhost desde docker usar el nombre de la imagen
+4. Para mandar llamar localhost desde docker usar el nombre de la imagen
 postgres
 redis
 evolution_api
