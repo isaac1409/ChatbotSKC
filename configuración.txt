@@ -1,0 +1,16 @@
+1. Dentro de la carpeta del proyecto, ejecutar
+docker compose up -d
+
+2. Crear la base de datos para n8n
+docker exec -it postgres psql -U admin
+CREATE DATABASE n8ndb;
+\q
+
+3. Para mandar llamar localhost desde docker usar el nombre de la imagen
+postgres
+redis
+evolution_api
+n8n
+
+Ejemplo:
+Si es n8n, en lugar de utilizar localhost:5678 utilizar n8n:5678
