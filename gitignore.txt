@@ -1,0 +1,46 @@
+# ================================
+# VARIABLES DE ENTORNO — NUNCA AL REPO
+# ================================
+.env
+.env.*
+*.env
+*.env.txt
+proyecto.env
+
+# ================================
+# PYTHON
+# ================================
+__pycache__/
+venv/
+*.pyc
+*.pyo
+.Python
+
+# ================================
+# EDITORES
+# ================================
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# ================================
+# SISTEMAS OPERATIVOS
+# ================================
+.DS_Store
+Thumbs.db
+
+# ================================
+# DOCKER — DATOS PERSISTENTES
+# ================================
+postgres_data/
+n8n_data/
+evolution_instances/
+redis_data/
+
+# ================================
+# LOGS
+# ================================
+*.log
+logs/

@@ -1,0 +1,88 @@
+╔══════════════════════════════════════════════════════╗
+║          GUÍA DE CONFIGURACIÓN — ChatbotSKC          ║
+╚══════════════════════════════════════════════════════╝
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+PASO 1 — ARCHIVO DE VARIABLES DE ENTORNO
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  Copiar la plantilla:
+    cp .env.example .env
+
+  Editar con tus valores reales:
+    nano .env   (o el editor de tu preferencia)
+
+  IMPORTANTE: El archivo .env NUNCA debe subirse al repo.
+  El .gitignore ya lo excluye automáticamente.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+PASO 2 — LEVANTAR LOS SERVICIOS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  docker compose up -d
+
+  Verificar que todos los servicios estén corriendo:
+    docker compose ps
+
+  Todos deben mostrar "healthy" o "running".
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+PASO 3 — CREAR BASE DE DATOS DE N8N
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  docker exec -it postgres psql -U admin
+  CREATE DATABASE n8ndb;
+  \q
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+PASO 4 — NOMBRES DE SERVICIOS INTERNOS (DOCKER)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  Dentro de la red Docker, usar el nombre del contenedor:
+    postgres        → en lugar de localhost:5432
+    redis           → en lugar de localhost:6379
+    evolution_api   → en lugar de localhost:8080
+    n8n             → en lugar de localhost:5678
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+PASO 5 — CONFIGURAR N8N
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  Acceder a n8n en: http://localhost:5678
+
+  Crear las siguientes credenciales en n8n antes de importar el workflow:
+    a) OpenAI API key
+    b) Google Calendar OAuth2
+    c) Google Sheets OAuth2
+    d) Postgres (host: postgres, db: n8ndb, user/pass del .env)
+    e) Header Auth (nombre: apikey, valor: tu AUTHENTICATION_API_KEY del .env)
+
+  Importar el workflow:
+    Settings → Import Workflow → chatbot_v2_refactorizado.json
+
+  Reemplazar en el workflow:
+    - ID de credencial Evolution API (nodos HTTP)
+    - ID del Google Spreadsheet
+    - ID de credencial Google Sheets
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+PASO 6 — GOOGLE SHEET DE CONFIGURACIÓN
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  Crear un Google Sheet con una hoja llamada "config"
+  con las columnas: campo | valor
+
+  Ver guia_prompt_qa.md para la estructura completa.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+PASO 7 — PRUEBAS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  Probar antes de activar:
+    1. Mensaje de texto simple
+    2. Imagen
+    3. Audio
+    4. Documento (debe responder que no puede procesarlo)
+    5. Mensaje del propio bot (no debe responder — filtro fromMe)
+
+  Solo activar el workflow cuando todas las pruebas pasen.

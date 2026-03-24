@@ -1,0 +1,600 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Guía de Configuración — ChatbotSKC v2</title>
+<style>
+  :root {
+    --bg: #0f1117;
+    --bg2: #1a1d27;
+    --bg3: #22263a;
+    --border: #2e3348;
+    --text: #e2e6f0;
+    --muted: #8892aa;
+    --blue: #4f8ef7;
+    --blue-bg: #1a2545;
+    --green: #3ecf8e;
+    --green-bg: #0d2e1f;
+    --red: #f55e5e;
+    --red-bg: #2e1a1a;
+    --amber: #f5a623;
+    --amber-bg: #2e2210;
+    --purple: #a78bfa;
+    --purple-bg: #1e1a35;
+    --mono: 'Courier New', monospace;
+    --sans: system-ui, -apple-system, sans-serif;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font-family: var(--sans); font-size: 15px; line-height: 1.7; }
+
+  .header { background: linear-gradient(135deg, #1a2545 0%, #1e1a35 100%); border-bottom: 1px solid var(--border); padding: 40px 48px; }
+  .header h1 { font-size: 28px; font-weight: 700; color: #fff; margin-bottom: 6px; }
+  .header p { color: var(--muted); font-size: 15px; }
+  .badge { display: inline-block; background: var(--blue-bg); color: var(--blue); border: 1px solid #2a3d6e; border-radius: 20px; padding: 3px 12px; font-size: 12px; font-weight: 600; margin-top: 12px; }
+
+  .container { max-width: 860px; margin: 0 auto; padding: 48px 32px; }
+
+  /* TABS */
+  .tabs { display: flex; gap: 4px; margin-bottom: 32px; background: var(--bg2); border: 1px solid var(--border); border-radius: 12px; padding: 6px; }
+  .tab { flex: 1; padding: 10px 16px; border-radius: 8px; border: none; background: transparent; color: var(--muted); font-size: 13px; font-weight: 600; cursor: pointer; transition: all .2s; text-align: center; }
+  .tab.active { background: var(--bg3); color: var(--text); }
+  .tab:hover:not(.active) { color: var(--text); }
+
+  .panel { display: none; }
+  .panel.active { display: block; }
+
+  /* STEPS */
+  .step { display: flex; gap: 20px; margin-bottom: 32px; }
+  .step-num { flex-shrink: 0; width: 36px; height: 36px; border-radius: 50%; background: var(--blue-bg); border: 2px solid var(--blue); color: var(--blue); display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 14px; margin-top: 2px; }
+  .step-num.done { background: var(--green-bg); border-color: var(--green); color: var(--green); }
+  .step-num.warn { background: var(--amber-bg); border-color: var(--amber); color: var(--amber); }
+  .step-num.danger { background: var(--red-bg); border-color: var(--red); color: var(--red); }
+  .step-body { flex: 1; }
+  .step-title { font-size: 17px; font-weight: 700; color: #fff; margin-bottom: 6px; }
+  .step-why { font-size: 13px; color: var(--muted); margin-bottom: 12px; padding: 8px 12px; background: var(--bg2); border-left: 3px solid var(--blue); border-radius: 0 6px 6px 0; }
+  .step-why strong { color: var(--blue); }
+
+  /* CARDS */
+  .card { background: var(--bg2); border: 1px solid var(--border); border-radius: 10px; padding: 20px; margin-bottom: 16px; }
+  .card-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); margin-bottom: 10px; }
+
+  /* CODE */
+  .code-block { background: #0a0c14; border: 1px solid var(--border); border-radius: 8px; padding: 16px 20px; font-family: var(--mono); font-size: 13px; line-height: 1.8; overflow-x: auto; position: relative; }
+  .code-block .comment { color: #4a5568; }
+  .code-block .key { color: #63b3ed; }
+  .code-block .val { color: #68d391; }
+  .code-block .placeholder { color: var(--amber); font-weight: 700; }
+  .code-block .danger-txt { color: var(--red); }
+  .copy-btn { position: absolute; top: 10px; right: 10px; background: var(--bg3); border: 1px solid var(--border); color: var(--muted); border-radius: 6px; padding: 4px 10px; font-size: 11px; cursor: pointer; transition: all .2s; }
+  .copy-btn:hover { color: var(--text); border-color: var(--blue); }
+
+  /* ALERTS */
+  .alert { border-radius: 8px; padding: 14px 16px; margin-bottom: 16px; font-size: 14px; display: flex; gap: 10px; align-items: flex-start; }
+  .alert-icon { font-size: 18px; flex-shrink: 0; margin-top: 1px; }
+  .alert.danger { background: var(--red-bg); border: 1px solid #5e2020; color: #fca5a5; }
+  .alert.warn { background: var(--amber-bg); border: 1px solid #5e3a10; color: #fcd34d; }
+  .alert.info { background: var(--blue-bg); border: 1px solid #1e3a6e; color: #93c5fd; }
+  .alert.success { background: var(--green-bg); border: 1px solid #0d4a2f; color: #6ee7b7; }
+
+  /* FILE TREE */
+  .tree { background: #0a0c14; border: 1px solid var(--border); border-radius: 8px; padding: 16px 20px; font-family: var(--mono); font-size: 13px; line-height: 2; }
+  .tree .new { color: var(--green); }
+  .tree .changed { color: var(--amber); }
+  .tree .removed { color: var(--red); text-decoration: line-through; opacity: .7; }
+  .tree .unchanged { color: var(--muted); }
+  .tree .folder { color: #a78bfa; }
+
+  /* TABLE */
+  table { width: 100%; border-collapse: collapse; font-size: 14px; margin-top: 10px; }
+  th { background: var(--bg3); color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: .05em; padding: 10px 14px; text-align: left; border-bottom: 1px solid var(--border); }
+  td { padding: 10px 14px; border-bottom: 1px solid var(--border); color: var(--text); vertical-align: top; }
+  tr:last-child td { border-bottom: none; }
+  .tag { display: inline-block; border-radius: 4px; padding: 2px 8px; font-size: 12px; font-weight: 600; }
+  .tag.new { background: var(--green-bg); color: var(--green); }
+  .tag.changed { background: var(--amber-bg); color: var(--amber); }
+  .tag.fix { background: var(--red-bg); color: var(--red); }
+  .tag.same { background: var(--bg3); color: var(--muted); }
+
+  /* DIVIDER */
+  .divider { border: none; border-top: 1px solid var(--border); margin: 32px 0; }
+
+  /* CHECKLIST */
+  .checklist { list-style: none; }
+  .checklist li { display: flex; align-items: flex-start; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--border); font-size: 14px; }
+  .checklist li:last-child { border-bottom: none; }
+  .checklist li input[type=checkbox] { margin-top: 3px; accent-color: var(--green); width: 16px; height: 16px; flex-shrink: 0; cursor: pointer; }
+  .checklist li label { cursor: pointer; color: var(--text); }
+  .checklist li label span { display: block; font-size: 12px; color: var(--muted); margin-top: 2px; }
+
+  /* INLINE CODE */
+  code { background: var(--bg3); border: 1px solid var(--border); border-radius: 4px; padding: 1px 6px; font-family: var(--mono); font-size: 12px; color: var(--purple); }
+
+  h3 { font-size: 16px; font-weight: 700; color: #fff; margin: 20px 0 10px; }
+  p { margin-bottom: 10px; color: var(--text); font-size: 14px; }
+
+  .connector { border-left: 2px solid var(--border); margin-left: 17px; padding: 4px 0; height: 16px; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>ChatbotSKC — Guía de Configuración v2</h1>
+  <p>Setup completo: repositorio + n8n + Google Sheets + credenciales</p>
+  <span class="badge">Refactorizado · 2026</span>
+</div>
+
+<div class="container">
+
+  <div class="tabs">
+    <button class="tab active" onclick="showTab('repo')">1. Repositorio</button>
+    <button class="tab" onclick="showTab('env')">2. Variables de entorno</button>
+    <button class="tab" onclick="showTab('docker')">3. Docker</button>
+    <button class="tab" onclick="showTab('n8n')">4. n8n & Workflow</button>
+    <button class="tab" onclick="showTab('sheets')">5. Google Sheets</button>
+    <button class="tab" onclick="showTab('check')">6. Checklist final</button>
+  </div>
+
+  <!-- ═══════════════════════════════ REPO ═══════════════════════════════ -->
+  <div class="panel active" id="tab-repo">
+
+    <div class="alert info">
+      <span class="alert-icon">ℹ</span>
+      <span>El JSON del workflow <strong>no vive en el repo</strong> — se importa directamente en n8n. Los cambios al repositorio son solo archivos de configuración y estructura.</span>
+    </div>
+
+    <h3>¿Qué cambia en el repo?</h3>
+    <div class="card">
+      <div class="card-label">Estructura del repositorio</div>
+      <div class="tree">
+        <span class="folder">ChatbotSKC/</span><br>
+        &nbsp;&nbsp;├── <span class="new">✚ .env.example</span> &nbsp;&nbsp;&nbsp;&nbsp;<span style="color:#4a5568"># plantilla segura — SÍ al repo</span><br>
+        &nbsp;&nbsp;├── <span class="removed">✖ proyecto.env</span> &nbsp;&nbsp;&nbsp;&nbsp;<span style="color:#4a5568"># eliminar del repo</span><br>
+        &nbsp;&nbsp;├── <span class="removed">✖ .env.txt</span> &nbsp;&nbsp;&nbsp;&nbsp;<span style="color:#4a5568"># eliminar del repo</span><br>
+        &nbsp;&nbsp;├── <span class="changed">~ .gitignore</span> &nbsp;&nbsp;&nbsp;&nbsp;<span style="color:#4a5568"># actualizado con más exclusiones</span><br>
+        &nbsp;&nbsp;├── <span class="changed">~ docker-compose.yml</span> &nbsp;&nbsp;&nbsp;&nbsp;<span style="color:#4a5568"># healthcheck mejorado en postgres</span><br>
+        &nbsp;&nbsp;├── <span class="changed">~ configuracion.txt</span> &nbsp;&nbsp;&nbsp;&nbsp;<span style="color:#4a5568"># instrucciones actualizadas</span><br>
+        &nbsp;&nbsp;└── <span class="unchanged">README.md</span> &nbsp;&nbsp;&nbsp;&nbsp;<span style="color:#4a5568"># sin cambios</span>
+      </div>
+    </div>
+
+    <h3>Qué hacer con cada archivo</h3>
+
+    <div class="step">
+      <div class="step-num danger">1</div>
+      <div class="step-body">
+        <div class="step-title">Eliminar archivos con credenciales reales del repo</div>
+        <div class="step-why"><strong>Por qué:</strong> <code>proyecto.env</code> y <code>.env.txt</code> contienen contraseñas reales y no deben existir en el historial de Git.</div>
+        <div class="code-block">
+          <button class="copy-btn" onclick="copyCode(this)">Copiar</button>
+<span class="comment"># Eliminar del repositorio (pero NO del sistema local si todavía los usas)</span>
+git rm --cached proyecto.env
+git rm --cached .env.txt
+
+<span class="comment"># Si ya no los necesitas en local tampoco</span>
+rm proyecto.env .env.txt
+
+git commit -m "chore: eliminar archivos de entorno con credenciales"
+        </div>
+        <div class="alert warn" style="margin-top:12px">
+          <span class="alert-icon">⚠</span>
+          <span>Si estos archivos ya estuvieron en un commit anterior, las credenciales están en el historial de Git. Debes <strong>rotar las contraseñas</strong> aunque elimines los archivos ahora.</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="connector"></div>
+
+    <div class="step">
+      <div class="step-num">2</div>
+      <div class="step-body">
+        <div class="step-title">Reemplazar <code>.gitignore</code> con la versión nueva</div>
+        <div class="step-why"><strong>Por qué:</strong> El <code>.gitignore</code> original solo excluía <code>.env</code> exacto. Ahora excluye todos los patrones: <code>*.env</code>, <code>*.env.txt</code>, <code>proyecto.env</code>, carpetas de datos de Docker, logs y archivos de editores.</div>
+        <p>Descarga el archivo <code>.gitignore</code> generado y reemplaza el existente en tu repo. Luego:</p>
+        <div class="code-block">
+          <button class="copy-btn" onclick="copyCode(this)">Copiar</button>
+git add .gitignore
+git commit -m "chore: actualizar .gitignore con exclusiones completas"
+        </div>
+      </div>
+    </div>
+
+    <div class="connector"></div>
+
+    <div class="step">
+      <div class="step-num">3</div>
+      <div class="step-body">
+        <div class="step-title">Agregar <code>.env.example</code> al repo</div>
+        <div class="step-why"><strong>Por qué:</strong> Es la plantilla con valores de marcador de posición (<code>CAMBIAR_ESTO_...</code>) que cualquier colaborador puede copiar para crear su propio <code>.env</code> local sin necesitar credenciales reales. Este archivo SÍ va al repo.</div>
+        <div class="code-block">
+          <button class="copy-btn" onclick="copyCode(this)">Copiar</button>
+git add .env.example
+git commit -m "chore: agregar plantilla .env.example"
+        </div>
+      </div>
+    </div>
+
+    <div class="connector"></div>
+
+    <div class="step">
+      <div class="step-num">4</div>
+      <div class="step-body">
+        <div class="step-title">Actualizar <code>docker-compose.yml</code></div>
+        <div class="step-why"><strong>Por qué:</strong> Se agregó <code>healthcheck</code> a postgres. El cambio crítico es que <code>evolution-api</code> ahora espera a que postgres esté <strong>healthy</strong> (no solo <em>started</em>) antes de arrancar. Esto evita errores de conexión al levantar los servicios por primera vez.</div>
+        <div class="code-block">
+          <button class="copy-btn" onclick="copyCode(this)">Copiar</button>
+git add docker-compose.yml
+git commit -m "fix: healthcheck postgres en docker-compose"
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ═══════════════════════════════ ENV ═══════════════════════════════ -->
+  <div class="panel" id="tab-env">
+
+    <div class="step">
+      <div class="step-num">1</div>
+      <div class="step-body">
+        <div class="step-title">Crear el archivo <code>.env</code> local desde la plantilla</div>
+        <div class="step-why"><strong>Por qué:</strong> El <code>.env</code> real NUNCA va al repo. Solo existe en la máquina donde corre Docker. Cada entorno (dev, staging, prod) tiene su propio <code>.env</code> con credenciales diferentes.</div>
+        <div class="code-block">
+          <button class="copy-btn" onclick="copyCode(this)">Copiar</button>
+cp .env.example .env
+nano .env
+        </div>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-num warn">2</div>
+      <div class="step-body">
+        <div class="step-title">Rellenar con contraseñas seguras</div>
+        <div class="step-why"><strong>Por qué:</strong> <code>admin123</code> es trivialmente adivinable. En producción, cualquier puerto expuesto con credenciales débiles es una brecha.</div>
+        <div class="card">
+          <div class="card-label">Cómo generar contraseñas seguras (terminal)</div>
+          <div class="code-block">
+            <button class="copy-btn" onclick="copyCode(this)">Copiar</button>
+<span class="comment"># Generar una contraseña de 32 caracteres aleatoria</span>
+openssl rand -base64 32
+
+<span class="comment"># Generar múltiples de una sola vez</span>
+for i in 1 2 3; do openssl rand -base64 32; done
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-label">Variables que DEBES cambiar</div>
+          <table>
+            <tr><th>Variable</th><th>Valor actual (NO usar)</th><th>Mínimo recomendado</th></tr>
+            <tr><td><code>POSTGRES_PASSWORD</code></td><td><span style="color:var(--red)">admin123</span></td><td>24 caracteres aleatorios</td></tr>
+            <tr><td><code>AUTHENTICATION_API_KEY</code></td><td><span style="color:var(--red)">ChangoPro2026</span></td><td>32 caracteres aleatorios</td></tr>
+            <tr><td><code>N8N_BASIC_AUTH_PASSWORD</code></td><td><span style="color:var(--red)">admin123</span></td><td>16 caracteres aleatorios</td></tr>
+            <tr><td><code>DATABASE_CONNECTION_URI</code></td><td><span style="color:var(--red)">contraseña hardcoded</span></td><td>Igual que POSTGRES_PASSWORD</td></tr>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-num">3</div>
+      <div class="step-body">
+        <div class="step-title">Gestión de contraseñas — recomendación para producción</div>
+        <div class="step-why"><strong>Por qué:</strong> Con múltiples clientes, necesitan un sistema para guardar y compartir credenciales de forma segura entre el equipo sin usar WhatsApp o correo.</div>
+        <div class="card">
+          <table>
+            <tr><th>Herramienta</th><th>Para qué</th><th>Precio</th></tr>
+            <tr>
+              <td><strong>Bitwarden</strong></td>
+              <td>Guardar y compartir credenciales con el equipo. Self-hosteable con Docker.</td>
+              <td>Gratis (team plan desde $3/mes)</td>
+            </tr>
+            <tr>
+              <td><strong>1Password Teams</strong></td>
+              <td>Alternativa más pulida a Bitwarden. Ideal cuando el equipo crece.</td>
+              <td>$4/usuario/mes</td>
+            </tr>
+            <tr>
+              <td><strong>.env por entorno</strong></td>
+              <td>Un <code>.env</code> diferente para dev, staging y prod. Nunca compartir el de prod.</td>
+              <td>Gratis (disciplina de equipo)</td>
+            </tr>
+          </table>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ═══════════════════════════════ DOCKER ═══════════════════════════════ -->
+  <div class="panel" id="tab-docker">
+
+    <div class="step">
+      <div class="step-num">1</div>
+      <div class="step-body">
+        <div class="step-title">Levantar todos los servicios</div>
+        <div class="code-block">
+          <button class="copy-btn" onclick="copyCode(this)">Copiar</button>
+<span class="comment"># Desde la carpeta del proyecto</span>
+docker compose up -d
+
+<span class="comment"># Verificar que todos están corriendo y healthy</span>
+docker compose ps
+        </div>
+        <div class="alert success" style="margin-top:12px">
+          <span class="alert-icon">✓</span>
+          <span>Todos los servicios deben mostrar <strong>healthy</strong> antes de continuar. Si alguno falla, revisa los logs con <code>docker compose logs [servicio]</code></span>
+        </div>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-num">2</div>
+      <div class="step-body">
+        <div class="step-title">Crear la base de datos de n8n</div>
+        <div class="step-why"><strong>Por qué:</strong> Postgres crea automáticamente solo la BD de Evolution (<code>evolutiondb</code>) porque está declarada en <code>POSTGRES_DB</code>. La de n8n (<code>n8ndb</code>) hay que crearla manualmente una sola vez.</div>
+        <div class="code-block">
+          <button class="copy-btn" onclick="copyCode(this)">Copiar</button>
+docker exec -it postgres psql -U admin
+CREATE DATABASE n8ndb;
+\q
+        </div>
+        <div class="alert info" style="margin-top:12px">
+          <span class="alert-icon">ℹ</span>
+          <span>Esto solo se hace <strong>una vez</strong>. Si el contenedor de postgres se reinicia, la base de datos persiste en el volumen <code>postgres_data</code>.</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-num">3</div>
+      <div class="step-body">
+        <div class="step-title">Reiniciar n8n para que detecte la BD nueva</div>
+        <div class="code-block">
+          <button class="copy-btn" onclick="copyCode(this)">Copiar</button>
+docker compose restart n8n
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ═══════════════════════════════ N8N ═══════════════════════════════ -->
+  <div class="panel" id="tab-n8n">
+
+    <div class="step">
+      <div class="step-num">1</div>
+      <div class="step-body">
+        <div class="step-title">Crear las credenciales en n8n ANTES de importar el workflow</div>
+        <div class="step-why"><strong>Por qué:</strong> El workflow refactorizado referencia credenciales por ID. Si importas primero y luego creas las credenciales, los nodos quedan con referencias rotas y hay que editarlos uno a uno.</div>
+        <p>Ir a <strong>Settings → Credentials → Add Credential</strong> y crear en este orden:</p>
+        <div class="card">
+          <table>
+            <tr><th>#</th><th>Tipo</th><th>Nombre sugerido</th><th>Datos</th></tr>
+            <tr>
+              <td>1</td>
+              <td>OpenAI API</td>
+              <td>OpenAi account</td>
+              <td>Tu API key de OpenAI</td>
+            </tr>
+            <tr>
+              <td>2</td>
+              <td>Google Calendar OAuth2</td>
+              <td>Google Calendar account</td>
+              <td>OAuth2 con tu cuenta de Google</td>
+            </tr>
+            <tr>
+              <td>3</td>
+              <td>Google Sheets OAuth2</td>
+              <td>Google Sheets account</td>
+              <td>OAuth2 (puede ser la misma cuenta)</td>
+            </tr>
+            <tr>
+              <td>4</td>
+              <td>Postgres</td>
+              <td>Postgres account</td>
+              <td>Host: <code>postgres</code> · DB: <code>n8ndb</code> · User/Pass del .env</td>
+            </tr>
+            <tr>
+              <td style="color:var(--red);font-weight:700">5 ★</td>
+              <td><strong>Header Auth</strong></td>
+              <td><strong>Evolution API — apikey</strong></td>
+              <td>Name: <code>apikey</code> · Value: tu <code>AUTHENTICATION_API_KEY</code></td>
+            </tr>
+          </table>
+        </div>
+        <div class="alert danger" style="margin-top:12px">
+          <span class="alert-icon">★</span>
+          <span>La credencial <strong>Header Auth (#5)</strong> es la más importante del refactor. Reemplaza la API key hardcodeada. Sin ella, los 3 nodos HTTP de Evolution no funcionarán.</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-num">2</div>
+      <div class="step-body">
+        <div class="step-title">Importar el workflow</div>
+        <div class="step-why"><strong>Por qué:</strong> El JSON refactorizado tiene el <code>id</code> original del workflow — al importar reemplaza la versión anterior sin crear duplicados.</div>
+        <p><strong>Settings → Import Workflow</strong> → seleccionar <code>chatbot_v2_refactorizado.json</code></p>
+        <div class="alert warn">
+          <span class="alert-icon">⚠</span>
+          <span>El workflow se importa con <code>"active": false</code> — NO lo actives todavía. Hay pasos de configuración pendientes.</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-num">3</div>
+      <div class="step-body">
+        <div class="step-title">Reemplazar los 3 marcadores en el workflow</div>
+        <div class="step-why"><strong>Por qué:</strong> Como las credenciales se crean en tu instancia de n8n, sus IDs son únicos — no pueden ir hardcodeados en el JSON compartido.</div>
+        <div class="card">
+          <div class="card-label">Nodos que necesitan actualización manual</div>
+          <table>
+            <tr><th>Nodo</th><th>Qué cambiar</th><th>Cómo</th></tr>
+            <tr>
+              <td><code>Enviar mensaje</code><br><code>Indicador de escritura</code><br><code>Respuesta documento</code></td>
+              <td>Credencial Evolution API</td>
+              <td>En cada nodo, ir a "Credential" → seleccionar <em>Evolution API — apikey</em></td>
+            </tr>
+            <tr>
+              <td><code>Leer config negocio</code></td>
+              <td>ID del Google Spreadsheet</td>
+              <td>Abrir el nodo → Document ID → pegar el ID de tu Sheet (está en la URL entre <code>/d/</code> y <code>/edit</code>)</td>
+            </tr>
+            <tr>
+              <td><code>AI Agent</code></td>
+              <td>Nombre del agente y empresa</td>
+              <td>En System Message reemplazar <code>[NOMBRE_EMPRESA]</code> con el nombre real</td>
+            </tr>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-num">4</div>
+      <div class="step-body">
+        <div class="step-title">Configurar el webhook en Evolution API</div>
+        <div class="step-why"><strong>Por qué:</strong> Evolution necesita saber a qué URL enviar los mensajes entrantes.</div>
+        <div class="code-block">
+          <button class="copy-btn" onclick="copyCode(this)">Copiar</button>
+POST http://localhost:8080/webhook/set/{tu_instancia}
+Headers:
+  apikey: {tu AUTHENTICATION_API_KEY}
+  Content-Type: application/json
+
+Body:
+{
+  "url": "http://n8n:5678/webhook/f39cbfe3-edfa-4cfa-929d-b8d10bf4fbd6",
+  "webhook_by_events": false,
+  "webhook_base64": false,
+  "events": ["MESSAGES_UPSERT"]
+}
+        </div>
+        <div class="alert info" style="margin-top:12px">
+          <span class="alert-icon">ℹ</span>
+          <span>Dentro de Docker, n8n se llama <code>n8n</code> en la URL, no <code>localhost</code>. Si Evolution es externo, usa la URL pública con dominio y SSL.</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-num done">5</div>
+      <div class="step-body">
+        <div class="step-title">Activar el workflow</div>
+        <p>Solo después de completar los pasos anteriores y pasar las pruebas del tab de Checklist, activar el toggle del workflow en n8n.</p>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ═══════════════════════════════ SHEETS ═══════════════════════════════ -->
+  <div class="panel" id="tab-sheets">
+
+    <div class="step">
+      <div class="step-num">1</div>
+      <div class="step-body">
+        <div class="step-title">Crear el Google Spreadsheet de configuración</div>
+        <div class="step-why"><strong>Por qué:</strong> Este Sheet reemplaza la información del negocio hardcodeada en el system prompt. Cambiar horarios, precios o servicios solo requiere editar el Sheet — sin tocar el workflow.</div>
+        <p>Ir a <a href="https://sheets.google.com" style="color:var(--blue)">sheets.google.com</a> → Nuevo spreadsheet → Renombrar la primera hoja a <strong>config</strong></p>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-num">2</div>
+      <div class="step-body">
+        <div class="step-title">Llenar la hoja <code>config</code> con los datos del negocio</div>
+        <div class="card">
+          <div class="card-label">Estructura — columna A = campo · columna B = valor</div>
+          <table>
+            <tr><th>campo</th><th>valor (ejemplo — reemplazar con datos reales)</th></tr>
+            <tr><td>nombre_empresa</td><td>[Tu nombre de empresa]</td></tr>
+            <tr><td>nombre_agente</td><td>[Nombre que tendrá el bot, ej: Aria]</td></tr>
+            <tr><td>ciudad</td><td>Guadalajara, Jalisco, México</td></tr>
+            <tr><td>horarios</td><td>Lunes a Viernes de 9:00 AM a 6:00 PM</td></tr>
+            <tr><td>telefono</td><td>[WhatsApp Business]</td></tr>
+            <tr><td>email</td><td>[Correo de contacto]</td></tr>
+            <tr><td>servicios</td><td>Chatbots con AI · Agentes de AI · Landing pages · Sitios web · Automatizaciones</td></tr>
+            <tr><td>precios_referencia</td><td>Chatbot desde $8,000 MXN · Landing page desde $5,000 MXN · Agente de AI desde $15,000 MXN · Sitio web desde $20,000 MXN · Proyectos a medida: cotización</td></tr>
+            <tr><td>politicas</td><td>Anticipo 50% al iniciar · Resto a la entrega · Discovery previo requerido</td></tr>
+            <tr><td>proceso</td><td>1) Discovery 30 min → 2) Propuesta → 3) Contrato → 4) Desarrollo → 5) Entrega y soporte</td></tr>
+          </table>
+        </div>
+        <div class="alert info" style="margin-top:12px">
+          <span class="alert-icon">ℹ</span>
+          <span>El ID del spreadsheet está en la URL: <code>docs.google.com/spreadsheets/d/<strong>[ESTE_ES_EL_ID]</strong>/edit</span></span>
+        </div>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-num">3</div>
+      <div class="step-body">
+        <div class="step-title">Compartir el Sheet con la cuenta de servicio de Google</div>
+        <div class="step-why"><strong>Por qué:</strong> La credencial OAuth2 de Google Sheets en n8n necesita acceso de lectura al spreadsheet.</div>
+        <p>En el Spreadsheet → botón <strong>Compartir</strong> → agregar el correo de la cuenta que autorizaste en la credencial de n8n → darle acceso de <strong>Lector</strong>.</p>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ═══════════════════════════════ CHECKLIST ═══════════════════════════════ -->
+  <div class="panel" id="tab-check">
+    <div class="card">
+      <div class="card-label">Checklist de activación — marcar todo antes de activar el workflow</div>
+      <ul class="checklist">
+        <li><input type="checkbox" id="c1"><label for="c1">Archivos con credenciales reales eliminados del repo (<code>proyecto.env</code>, <code>.env.txt</code>)<span>git rm --cached + commit</span></label></li>
+        <li><input type="checkbox" id="c2"><label for="c2"><code>.gitignore</code> actualizado con todos los patrones de exclusión<span>*.env, *.env.txt, carpetas de Docker</span></label></li>
+        <li><input type="checkbox" id="c3"><label for="c3"><code>.env.example</code> agregado al repo con valores placeholder<span>Sin credenciales reales, solo CAMBIAR_ESTO_...</span></label></li>
+        <li><input type="checkbox" id="c4"><label for="c4">Archivo <code>.env</code> local creado desde la plantilla con contraseñas seguras<span>openssl rand -base64 32 para cada una</span></label></li>
+        <li><input type="checkbox" id="c5"><label for="c5">Docker compose levantado y todos los servicios en estado healthy<span>docker compose ps</span></label></li>
+        <li><input type="checkbox" id="c6"><label for="c6">Base de datos <code>n8ndb</code> creada en Postgres<span>docker exec -it postgres psql -U admin → CREATE DATABASE n8ndb;</span></label></li>
+        <li><input type="checkbox" id="c7"><label for="c7">Credencial <strong>Header Auth (Evolution API)</strong> creada en n8n<span>Name: apikey · Value: tu AUTHENTICATION_API_KEY</span></label></li>
+        <li><input type="checkbox" id="c8"><label for="c8">Credenciales OpenAI, Google Calendar, Google Sheets y Postgres creadas en n8n</label></li>
+        <li><input type="checkbox" id="c9"><label for="c9">Workflow <code>chatbot_v2_refactorizado.json</code> importado en n8n</label></li>
+        <li><input type="checkbox" id="c10"><label for="c10">Credencial de Evolution API asignada en los 3 nodos HTTP del workflow<span>Enviar mensaje · Indicador de escritura · Respuesta documento</span></label></li>
+        <li><input type="checkbox" id="c11"><label for="c11">Google Sheet creado con hoja <code>config</code> y datos del negocio<span>columnas: campo | valor</span></label></li>
+        <li><input type="checkbox" id="c12"><label for="c12">ID del spreadsheet configurado en el nodo <code>Leer config negocio</code></label></li>
+        <li><input type="checkbox" id="c13"><label for="c13"><code>[NOMBRE_EMPRESA]</code> reemplazado en el system prompt del AI Agent</label></li>
+        <li><input type="checkbox" id="c14"><label for="c14">Webhook configurado en Evolution API apuntando a la URL de n8n</label></li>
+        <li><input type="checkbox" id="c15"><label for="c15">Prueba: mensaje de texto → bot responde correctamente</label></li>
+        <li><input type="checkbox" id="c16"><label for="c16">Prueba: imagen → bot describe e interpreta la imagen</label></li>
+        <li><input type="checkbox" id="c17"><label for="c17">Prueba: audio → bot transcribe y responde</label></li>
+        <li><input type="checkbox" id="c18"><label for="c18">Prueba: documento PDF → bot responde que no puede procesarlo</label></li>
+        <li><input type="checkbox" id="c19"><label for="c19">Prueba: mensaje enviado por el bot → NO genera respuesta (filtro fromMe activo)<span>Verificar en el historial de ejecuciones de n8n que se detuvo en "Filtrar fromMe"</span></label></li>
+        <li><input type="checkbox" id="c20"><label for="c20">Prueba: Evolution recibe HTTP 200 en menos de 1 segundo<span>Revisar logs de Evolution API para confirmar no hay timeouts</span></label></li>
+        <li>
+          <input type="checkbox" id="c21">
+          <label for="c21" style="color:var(--green);font-weight:700">✦ ACTIVAR el workflow en n8n</label>
+        </li>
+      </ul>
+    </div>
+
+    <div class="alert success" style="margin-top:20px">
+      <span class="alert-icon">✓</span>
+      <span>Con todos los puntos marcados, el chatbot está listo para producción. Para clientes futuros: duplicar el workflow en n8n y cambiar solo el ID del Sheet y las credenciales de Google Calendar.</span>
+    </div>
+  </div>
+
+</div>
+
+<script>
+function showTab(id) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+  event.target.classList.add('active');
+  document.getElementById('tab-' + id).classList.add('active');
+}
+
+function copyCode(btn) {
+  const block = btn.parentElement;
+  const text = block.innerText.replace('Copiar\n', '').replace('Copiado\n', '').trim();
+  navigator.clipboard.writeText(text).then(() => {
+    btn.textContent = 'Copiado';
+    setTimeout(() => btn.textContent = 'Copiar', 2000);
+  });
+}
+</script>
+</body>
+</html>
