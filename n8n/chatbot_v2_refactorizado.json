@@ -1,0 +1,1066 @@
+{
+  "name": "Chatbot — v2 Refactorizado",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "f39cbfe3-edfa-4cfa-929d-b8d10bf4fbd6",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [-2700, 368],
+      "id": "7f205534-797a-4949-85bb-db7ac3dad079",
+      "name": "Webhook",
+      "webhookId": "f39cbfe3-edfa-4cfa-929d-b8d10bf4fbd6"
+    },
+    {
+      "parameters": {
+        "respondWith": "text",
+        "responseBody": "ok",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [-2700, 510],
+      "id": "aaaa0001-0000-0000-0000-000000000001",
+      "name": "Responder Webhook"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "3e6335ae-74c3-4655-b68f-cdf0c68b864f",
+              "name": "number",
+              "type": "string",
+              "value": "={{ $json.body.data.key.remoteJid }}"
+            },
+            {
+              "id": "15f399cf-a98e-45e7-91ce-61b4fad340fd",
+              "name": "name",
+              "type": "string",
+              "value": "={{ $json.body.data.pushName }}"
+            },
+            {
+              "id": "b1943003-1f47-40e1-b418-6a52557ec44e",
+              "name": "key_id",
+              "type": "string",
+              "value": "={{ $json.body.data.key.id }}"
+            },
+            {
+              "id": "b943-fromme-field",
+              "name": "fromMe",
+              "type": "boolean",
+              "value": "={{ $json.body.data.key.fromMe }}"
+            },
+            {
+              "id": "b943-instance-field",
+              "name": "instance",
+              "type": "string",
+              "value": "={{ $json.body.instance }}"
+            },
+            {
+              "id": "ed23194b-22ca-455b-a085-7dae706d0569",
+              "name": "text",
+              "type": "string",
+              "value": "={{ $json.body.data.message.conversation ?? $json.body.data.message.extendedTextMessage.text ?? '' }}"
+            },
+            {
+              "id": "b35f8b61-da15-42e3-a078-4cd901e1f273",
+              "name": "type",
+              "type": "string",
+              "value": "={{ $json.body.data.message.imageMessage.mimetype ?? '' }}"
+            },
+            {
+              "id": "a62bf96a-51aa-44c3-9e5d-f592e32a31d6",
+              "name": "image.url",
+              "type": "string",
+              "value": "={{ $json.body.data.message.imageMessage.url ?? '' }}"
+            },
+            {
+              "id": "b004987d-3527-4040-a5e6-5fe06b25c9b9",
+              "name": "audio.url",
+              "type": "string",
+              "value": "={{ $json.body.data.message.audioMessage.url ?? '' }}"
+            },
+            {
+              "id": "4c2cc03a-c104-4a87-9d31-6a7c256890ad",
+              "name": "document.url",
+              "type": "string",
+              "value": "={{ $json.body.data.message.documentMessage.url ?? '' }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "c40a6b43-1a65-45ae-9473-596fbcdf6439",
+      "name": "Edit Fields1",
+      "type": "n8n-nodes-base.set",
+      "position": [-2460, 368],
+      "typeVersion": 3.4
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "version": 2,
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "fromme-check-0001",
+              "operator": {
+                "type": "boolean",
+                "operation": "notTrue"
+              },
+              "leftValue": "={{ $json.fromMe }}",
+              "rightValue": ""
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [-2220, 368],
+      "id": "aaaa0002-0000-0000-0000-000000000002",
+      "name": "Filtrar fromMe"
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "documentId": {
+          "__rl": true,
+          "value": "REEMPLAZAR_CON_ID_DE_SPREADSHEET",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "config",
+          "mode": "name"
+        },
+        "filtersUI": {},
+        "combineFilters": "AND",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [-1980, 368],
+      "id": "aaaa0003-0000-0000-0000-000000000003",
+      "name": "Leer config negocio",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "REEMPLAZAR_CON_ID_DE_CREDENCIAL_SHEETS",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Obtener filas de config del negocio\nconst configRows = $input.all();\nconst parts = [];\n\nfor (const row of configRows) {\n  const campo = row.json['campo'];\n  const valor = row.json['valor'];\n  if (campo && valor) {\n    parts.push(`${campo}: ${valor}`);\n  }\n}\n\nconst businessInfo = parts.join('\\n');\n\n// Recuperar datos originales del mensaje para no perderlos\nconst originalMsg = $('Filtrar fromMe').first().json;\n\nreturn [{ json: { ...originalMsg, businessInfo } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [-1740, 368],
+      "id": "aaaa0004-0000-0000-0000-000000000004",
+      "name": "Formatear config"
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "version": 2,
+                  "leftValue": "",
+                  "caseSensitive": true,
+                  "typeValidation": "strict"
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "id": "2f9854ac-26b3-446c-9d0d-ae25157c61bb",
+                    "operator": {
+                      "type": "string",
+                      "operation": "notEmpty",
+                      "singleValue": true
+                    },
+                    "leftValue": "={{ $json.text }}",
+                    "rightValue": "="
+                  }
+                ]
+              },
+              "renameOutput": true,
+              "outputKey": "texto"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "version": 2,
+                  "leftValue": "",
+                  "caseSensitive": true,
+                  "typeValidation": "strict"
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "id": "73b7d93a-928e-42ec-9c8e-ae8e9b97a867",
+                    "operator": {
+                      "type": "string",
+                      "operation": "notEmpty",
+                      "singleValue": true
+                    },
+                    "leftValue": "={{ $json['image.url'] }}",
+                    "rightValue": "="
+                  }
+                ]
+              },
+              "renameOutput": true,
+              "outputKey": "imagen"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "version": 2,
+                  "leftValue": "",
+                  "caseSensitive": true,
+                  "typeValidation": "strict"
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "id": "2f9915b9-e2b4-4528-ad36-515a848ab1be",
+                    "operator": {
+                      "type": "string",
+                      "operation": "notEmpty",
+                      "singleValue": true
+                    },
+                    "leftValue": "={{ $json['audio.url'] }}",
+                    "rightValue": "[null]"
+                  }
+                ]
+              },
+              "renameOutput": true,
+              "outputKey": "audio"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "version": 2,
+                  "leftValue": "",
+                  "caseSensitive": true,
+                  "typeValidation": "strict"
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "id": "9fcbe89a-c9d7-4dc6-bb6f-27c1cacbfddc",
+                    "operator": {
+                      "type": "string",
+                      "operation": "notEmpty",
+                      "singleValue": true
+                    },
+                    "leftValue": "={{ $json['document.url'] }}",
+                    "rightValue": "[null]"
+                  }
+                ]
+              },
+              "renameOutput": true,
+              "outputKey": "documento"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "ff805319-003e-4858-8060-6bb724c66a44",
+      "name": "Switch",
+      "type": "n8n-nodes-base.switch",
+      "position": [-1500, 368],
+      "typeVersion": 3.2
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=http://evolution_api:8080/message/sendPresence/{{ $json.instance }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "content-type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ number: $json.number, options: { presence: 'composing', delay: 5000 } }) }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [-1260, 100],
+      "id": "aaaa0005-0000-0000-0000-000000000005",
+      "name": "Indicador de escritura",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "REEMPLAZAR_CON_ID_DE_CREDENCIAL_EVOLUTION",
+          "name": "Evolution API — apikey"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "a0468cf5-6bcb-4d13-90a6-fb30deae148e",
+              "name": "entradaIA",
+              "value": "={{ $json.text }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [-1040, 100],
+      "id": "2aacbdbe-92ed-4f74-991d-a34a7d376c55",
+      "name": "Edit Fields"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.entradaIA }}",
+        "options": {
+          "systemMessage": "=Eres el asistente virtual de [NOMBRE_EMPRESA]. Tu función es atender visitantes, responder preguntas sobre los servicios y calificar leads antes de agendar una reunión de discovery con el equipo.\n\nINFORMACIÓN DE LA EMPRESA:\n{{ $('Formatear config').first().json.businessInfo }}\n\n-----------------------------------------------\nCOMPORTAMIENTO GENERAL\n-----------------------------------------------\n- Responde siempre de forma clara, amable y profesional.\n- Usa horario en formato 12 horas (AM/PM) a menos que el usuario use formato de 24 horas. No lo menciones al usuario.\n- Si recibes un saludo, responde cordialmente.\n- Si recibes un mensaje sin sentido o archivos no procesables, responde: \"¡Hola! No entendí bien tu mensaje, ¿en qué puedo ayudarte?\"\n- Si la información solicitada no está disponible, di: \"No tengo esa información en este momento, pero con gusto puedo ayudarte con otra pregunta o agendar una llamada con el equipo.\"\n- Usa la memoria de conversación para no volver a pedir datos ya proporcionados. Solo confirma si es necesario.\n- Mantén respuestas concisas y fáciles de entender.\n\n-----------------------------------------------\nPREGUNTAS SOBRE EL NEGOCIO\n-----------------------------------------------\nPara preguntas sobre horarios, ubicación, servicios, precios o políticas, usa únicamente la información de la empresa mostrada arriba. No inventes datos.\n\n-----------------------------------------------\nCALIFICACIÓN DE LEADS\n-----------------------------------------------\nCuando un usuario muestre interés en un servicio, recaba esta información de forma conversacional y natural (máximo 2 preguntas a la vez, sin saturar):\n1. Nombre completo\n2. Nombre de empresa y giro del negocio\n3. Servicio de interés: chatbot/agente de AI, landing page, sitio web, automatización de procesos\n4. Problema principal que quiere resolver\n5. Rango de presupuesto aproximado (opcional — preséntalo siempre como opcional)\n\nCon esa información, ofrécele agendar una reunión de discovery de 30 minutos donde el equipo podrá conocer mejor sus necesidades y presentarle una propuesta personalizada.\n\nIMPORTANTE:\n- NO hagas compromisos de precio exacto, tiempo de entrega ni funcionalidades específicas en este chat.\n- NO digas que algo es posible o imposible sin conocer el brief completo.\n- NO prometas resultados de negocio (ventas, ROI, clientes nuevos).\n- NO compares nuestra empresa con competidores.\n- Esos detalles se definen en la reunión de discovery.\n\n-----------------------------------------------\nGESTIÓN DE CITAS — REUNIÓN DE DISCOVERY\n-----------------------------------------------\nToma en cuenta la memoria de conversación. No vuelvas a pedir datos ya proporcionados.\n\nAGENDAR (herramienta: agendar_cita):\nDatos necesarios:\n- Nombre completo\n- Teléfono\n- Fecha y hora\n- Servicio de interés\n\nDuración fija: 30 minutos. Nunca preguntes la duración al usuario.\nVerifica disponibilidad antes de confirmar (usando consultar_citas internamente).\nSi hay conflicto de horario, di solo: \"Ese horario no está disponible, ¿tienes otra preferencia?\" Sin mencionar otros nombres ni teléfonos.\nCuando tengas toda la información, confirma al usuario que vas a crear la cita y llama a agendar_cita.\n\nCONSULTAR (herramienta: consultar_citas — USO INTERNO ÚNICAMENTE):\nÚsala solo para:\n1. Verificar disponibilidad antes de agendar una nueva cita\n2. Obtener el eventId antes de cancelar una cita\nEl usuario no puede solicitar directamente que revises la agenda.\n\nCANCELAR (herramienta: cancelar_cita):\nDatos necesarios: nombre y fecha de la cita.\nPrimero usa consultar_citas para obtener el eventId. Nunca asumas ni inventes un eventId.\n\n-----------------------------------------------\nPRIVACIDAD Y LÍMITES ESTRICTOS\n-----------------------------------------------\n- NUNCA compartas información de otras personas ni de otras citas.\n- NUNCA menciones que hay conflictos con citas de otras personas ni des sus datos.\n- NUNCA confirmes tiempos de entrega sin brief firmado.\n- Si hay un problema técnico o fuera de tu alcance, di: \"En este momento no puedo procesar eso. ¿Te puedo ayudar con algo más o prefieres que agendemos una llamada?\"\n\nHoy es {{ $now }}. Zona horaria: America/Mexico_City"
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3,
+      "position": [208, 0],
+      "id": "72a2602a-00c8-47a2-acdd-063081508cb3",
+      "name": "AI Agent"
+    },
+    {
+      "parameters": {
+        "descriptionType": "manual",
+        "toolDescription": "Usa esta herramienta cuando el usuario quiera crear una nueva reunión de discovery. Antes de llamarla, verifica disponibilidad usando consultar_citas para confirmar que el horario esté libre.",
+        "calendar": {
+          "__rl": true,
+          "value": "classroom113374344448521004637@group.calendar.google.com",
+          "mode": "list",
+          "cachedResultName": "Citas"
+        },
+        "start": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('Start', ``, 'string') }}",
+        "end": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('End', ``, 'string') }}",
+        "additionalFields": {
+          "description": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('Description', ``, 'string') }}",
+          "summary": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('Summary', ``, 'string') }}"
+        }
+      },
+      "type": "n8n-nodes-base.googleCalendarTool",
+      "typeVersion": 1.3,
+      "position": [656, 160],
+      "id": "2956bc6b-4d5f-4db6-9834-ff4533808e56",
+      "name": "agendar_cita",
+      "credentials": {
+        "googleCalendarOAuth2Api": {
+          "id": "2ok4CwfqmcVrtvEj",
+          "name": "Google Calendar account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "descriptionType": "manual",
+        "toolDescription": "Usa esta herramienta cuando el usuario quiera cancelar una cita. IMPORTANTE: Antes de llamar a esta herramienta, DEBES llamar a consultar_citas para obtener el eventId del evento a cancelar. Nunca inventes ni asumas un eventId.",
+        "operation": "delete",
+        "calendar": {
+          "__rl": true,
+          "value": "classroom113374344448521004637@group.calendar.google.com",
+          "mode": "list",
+          "cachedResultName": "Citas"
+        },
+        "eventId": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('Event_ID', ``, 'string') }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleCalendarTool",
+      "typeVersion": 1.3,
+      "position": [416, 288],
+      "id": "9fce9900-ed13-47e8-bbd5-7ff4de75b85a",
+      "name": "cancelar_cita",
+      "credentials": {
+        "googleCalendarOAuth2Api": {
+          "id": "2ok4CwfqmcVrtvEj",
+          "name": "Google Calendar account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "descriptionType": "manual",
+        "toolDescription": "Herramienta de USO INTERNO ÚNICAMENTE. Úsala en dos casos: 1) Para verificar que un horario esté disponible antes de agendar una cita nueva. 2) Para obtener el eventId de una cita antes de cancelarla. El usuario no puede solicitar esta herramienta directamente ni sabe que existe.",
+        "operation": "getAll",
+        "calendar": {
+          "__rl": true,
+          "value": "classroom113374344448521004637@group.calendar.google.com",
+          "mode": "list",
+          "cachedResultName": "Citas"
+        },
+        "limit": 10,
+        "timeMin": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('After', ``, 'string') }}",
+        "timeMax": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('Before', ``, 'string') }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleCalendarTool",
+      "typeVersion": 1.3,
+      "position": [544, 240],
+      "id": "050ca5cd-4552-4f7d-bc9f-bf4af846dca0",
+      "name": "consultar_citas",
+      "credentials": {
+        "googleCalendarOAuth2Api": {
+          "id": "2ok4CwfqmcVrtvEj",
+          "name": "Google Calendar account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "mode": "list",
+          "value": "gpt-4.1-mini"
+        },
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.2,
+      "position": [96, 224],
+      "id": "63fe81a7-0656-44c7-8c99-9f3bb4352eb5",
+      "name": "OpenAI Chat Model2",
+      "credentials": {
+        "openAiApi": {
+          "id": "lr0P5EyuautpySzi",
+          "name": "OpenAi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sessionIdType": "customKey",
+        "sessionKey": "={{ $('Switch').item.json.number.split('@')[0] }}",
+        "contextWindowLength": 30
+      },
+      "type": "@n8n/n8n-nodes-langchain.memoryPostgresChat",
+      "typeVersion": 1.3,
+      "position": [256, 272],
+      "id": "f4e8d397-4b54-4da6-b2f5-ba414c30ec16",
+      "name": "Postgres Chat Memory",
+      "credentials": {
+        "postgres": {
+          "id": "o9VRxhbtBihw7wDQ",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "c3c6c91a-1838-4b08-9332-1d64afbb28fa",
+              "name": "respuestaIA",
+              "value": "={{ $json.output }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [560, 0],
+      "id": "f4b5ee69-234e-461f-8be2-a3492da52f2d",
+      "name": "Edit Fields2"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=http://evolution_api:8080/message/sendText/{{ $('Webhook').item.json.body.instance }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "content-type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "number",
+              "value": "={{ $('Switch').item.json.number }}"
+            },
+            {
+              "name": "text",
+              "value": "={{ $json.respuestaIA }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [816, 0],
+      "id": "cc11f800-03b9-4928-9df7-86f60a64f583",
+      "name": "Enviar mensaje",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "REEMPLAZAR_CON_ID_DE_CREDENCIAL_EVOLUTION",
+          "name": "Evolution API — apikey"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "chat-api",
+        "operation": "get-media-base64",
+        "instanceName": "={{ $('Webhook').item.json.body.instance }}",
+        "messageId": "={{ $json.key_id }}"
+      },
+      "type": "n8n-nodes-evolution-api.evolutionApi",
+      "typeVersion": 1,
+      "position": [-1260, 368],
+      "id": "d6009d11-8815-4954-9349-e48f49afe2e5",
+      "name": "Obtener media en base64",
+      "credentials": {
+        "evolutionApi": {
+          "id": "lNMwFbHL5WUsP5Fw",
+          "name": "Evolution account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "toBinary",
+        "sourceProperty": "data.base64",
+        "binaryPropertyName": "file",
+        "options": {
+          "fileName": "data"
+        }
+      },
+      "type": "n8n-nodes-base.convertToFile",
+      "typeVersion": 1.1,
+      "position": [-1040, 368],
+      "id": "1a4b165b-85da-48f3-b43c-96af86cb8d5b",
+      "name": "Convert to File1"
+    },
+    {
+      "parameters": {
+        "resource": "image",
+        "operation": "analyze",
+        "modelId": {
+          "__rl": true,
+          "value": "gpt-4o-mini",
+          "mode": "list",
+          "cachedResultName": "GPT-4O-MINI"
+        },
+        "text": "¿Qué hay en la imagen? Descríbela detalladamente",
+        "inputType": "base64",
+        "binaryPropertyName": "file",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 2.1,
+      "position": [-816, 368],
+      "id": "630fe99c-ca81-4ad5-8018-f76c9b154056",
+      "name": "Analyze image",
+      "credentials": {
+        "openAiApi": {
+          "id": "lr0P5EyuautpySzi",
+          "name": "OpenAi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "962b1277-b634-454d-a2f1-0f03c2e52002",
+              "name": "chatInput",
+              "value": "={{ $json['0'].content[0].text }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [-592, 368],
+      "id": "40f0b62b-e678-41ea-b71f-471738d6e2e1",
+      "name": "Edit Fields4"
+    },
+    {
+      "parameters": {
+        "options": {
+          "systemMessage": "Eres responsable de analizar el resultado de un análisis de imagen. Puede contener descripción de texto visible, objetos, contexto visual. Tu tarea es interpretar la intención del usuario con la imagen enviada y resumirla para el siguiente agente de forma clara y concisa."
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3,
+      "position": [-368, 368],
+      "id": "739ee566-d438-47ee-9440-20b106d9cf0b",
+      "name": "AI Agent1"
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "mode": "list",
+          "value": "gpt-4.1-mini"
+        },
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.2,
+      "position": [-432, 544],
+      "id": "e5f7ee60-3f75-4a39-ba7e-6dcaf5ff6a1c",
+      "name": "OpenAI Chat Model",
+      "credentials": {
+        "openAiApi": {
+          "id": "lr0P5EyuautpySzi",
+          "name": "OpenAi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "146d3840-4549-4c2e-954b-0c8c6c0ba348",
+              "name": "entradaIA",
+              "value": "={{ $json.output }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [-128, 368],
+      "id": "949c892e-12ee-4148-85fa-4f1036c0fc8b",
+      "name": "Edit Fields3"
+    },
+    {
+      "parameters": {
+        "operation": "toBinary",
+        "sourceProperty": "data.base64",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.convertToFile",
+      "typeVersion": 1.1,
+      "position": [-1260, 640],
+      "id": "f336e690-90e7-43ae-859e-9c2f14b841cb",
+      "name": "Convert to File"
+    },
+    {
+      "parameters": {
+        "resource": "audio",
+        "operation": "transcribe",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 2,
+      "position": [-1040, 640],
+      "id": "94f9f81d-41db-4daf-aaba-258d9ee75bf6",
+      "name": "Transcribe a recording",
+      "credentials": {
+        "openAiApi": {
+          "id": "lr0P5EyuautpySzi",
+          "name": "OpenAi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=http://evolution_api:8080/message/sendText/{{ $('Webhook').item.json.body.instance }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "content-type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "number",
+              "value": "={{ $json.number }}"
+            },
+            {
+              "name": "text",
+              "value": "Lo siento, en este momento no puedo procesar documentos. ¿Puedo ayudarte con algo más o prefieres que agendemos una llamada con el equipo? \uD83D\uDE0A"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [-1500, 560],
+      "id": "aaaa0006-0000-0000-0000-000000000006",
+      "name": "Respuesta documento",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "REEMPLAZAR_CON_ID_DE_CREDENCIAL_EVOLUTION",
+          "name": "Evolution API — apikey"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Responder Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Responder Webhook": {
+      "main": [
+        [
+          {
+            "node": "Edit Fields1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Edit Fields1": {
+      "main": [
+        [
+          {
+            "node": "Filtrar fromMe",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filtrar fromMe": {
+      "main": [
+        [
+          {
+            "node": "Leer config negocio",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Leer config negocio": {
+      "main": [
+        [
+          {
+            "node": "Formatear config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Formatear config": {
+      "main": [
+        [
+          {
+            "node": "Switch",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Switch": {
+      "main": [
+        [
+          {
+            "node": "Indicador de escritura",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Obtener media en base64",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Convert to File",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respuesta documento",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Indicador de escritura": {
+      "main": [
+        [
+          {
+            "node": "Edit Fields",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Edit Fields": {
+      "main": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Obtener media en base64": {
+      "main": [
+        [
+          {
+            "node": "Convert to File1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Convert to File1": {
+      "main": [
+        [
+          {
+            "node": "Analyze image",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Analyze image": {
+      "main": [
+        [
+          {
+            "node": "Edit Fields4",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Edit Fields4": {
+      "main": [
+        [
+          {
+            "node": "AI Agent1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agent1": {
+      "main": [
+        [
+          {
+            "node": "Edit Fields3",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Edit Fields3": {
+      "main": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Convert to File": {
+      "main": [
+        [
+          {
+            "node": "Transcribe a recording",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Transcribe a recording": {
+      "main": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agent": {
+      "main": [
+        [
+          {
+            "node": "Edit Fields2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Edit Fields2": {
+      "main": [
+        [
+          {
+            "node": "Enviar mensaje",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "agendar_cita": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "cancelar_cita": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "consultar_citas": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Model2": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Postgres Chat Memory": {
+      "ai_memory": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_memory",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent1",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false,
+    "errorWorkflow": "REEMPLAZAR_CON_ID_DE_WORKFLOW_DE_ERRORES",
+    "saveExecutionProgress": true,
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "versionId": "chatbot-v2-refactorizado-2026",
+  "meta": {
+    "templateCredsSetupCompleted": false,
+    "instanceId": "3b782585e347aaa98964e8883dbac50a04bca1643091eb306b2fdb1f59336a59"
+  },
+  "id": "AGfF2y8RlQQrSHOW",
+  "tags": [
+    { "name": "produccion" },
+    { "name": "chatbot" }
+  ]
+}
