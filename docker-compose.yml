@@ -1,0 +1,61 @@
+services:
+
+  postgres:
+    image: postgres:15
+    container_name: postgres
+    restart: always
+    env_file:
+      - .env
+    ports:
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./initdb:/docker-entrypoint-initdb.d
+
+  redis:
+    image: redis:7
+    container_name: redis
+    restart: always
+    ports:
+      - "127.0.0.1:6379:6379"
+    command: ["redis-server", "--requirepass", "${REDIS_PASSWORD}"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  evolution-api:
+    image: evoapicloud/evolution-api:v2.3.7
+    container_name: evolution_api
+    restart: always
+    ports:
+      - "8080:8080"
+    depends_on:
+      postgres:
+        condition: service_started
+      redis:
+        condition: service_healthy
+    env_file:
+      - .env
+    volumes:
+      - evolution_instances:/evolution/instances
+
+  n8n:
+    image: n8nio/n8n:2.10.4
+    container_name: n8n
+    restart: always
+    ports:
+      - "5678:5678"
+    depends_on:
+      postgres:
+        condition: service_started
+    env_file:
+      - .env
+    volumes:
+      - n8n_data:/home/node/.n8n
+
+volumes:
+  postgres_data:
+  evolution_instances:
+  n8n_data:

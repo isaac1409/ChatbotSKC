@@ -1,0 +1,19 @@
+# macOS
+.DS_Store
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+venv/
+.env
+
+# Docker
+*.log
+
+# Node / n8n
+node_modules/
+
+# OS
+Thumbs.db
