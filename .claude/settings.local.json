@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "Bash(Remove-Item -Path \"D:\\\\Repos_Git\\\\ChatbatSKC\" -Recurse -Force -ErrorAction SilentlyContinue)",
+      "Bash(Write-Host \"Cleaned typo directory\")"
+    ]
+  }
+}
