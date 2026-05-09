@@ -1,0 +1,357 @@
+{
+  "name": "Chatbot_GCal_Sync",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "*/30 * * * *"
+            }
+          ]
+        }
+      },
+      "id": "d1000001-feed-beef-cafe-000000000001",
+      "name": "Cron cada 30 min",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [240, 400]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT\n  COALESCE(\n    MAX(updated_at),\n    NOW() - INTERVAL '1 hour'\n  )::TEXT AS ultimo_sync,\n  (SELECT empresa_id FROM instancias_whatsapp WHERE evolution_instance_name = 'SKC' LIMIT 1)::TEXT AS empresa_id\nFROM citas\nWHERE empresa_id = (SELECT empresa_id FROM instancias_whatsapp WHERE evolution_instance_name = 'SKC' LIMIT 1)",
+        "options": {}
+      },
+      "id": "d1000002-feed-beef-cafe-000000000002",
+      "name": "Obtener último sync",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [460, 400],
+      "credentials": {
+        "postgres": {
+          "id": "POSTGRES_CREDENTIAL_ID",
+          "name": "PostgreSQL — ChatbotSKC"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "calendar": {
+          "__rl": true,
+          "value": "contacto.skcia@gmail.com",
+          "mode": "id"
+        },
+        "returnAll": false,
+        "limit": 100,
+        "options": {
+          "timeMin": "={{ $json.ultimo_sync }}",
+          "showDeleted": true,
+          "singleEvents": true,
+          "orderBy": "updated"
+        }
+      },
+      "id": "d1000003-feed-beef-cafe-000000000003",
+      "name": "Listar eventos modificados",
+      "type": "n8n-nodes-base.googleCalendar",
+      "typeVersion": 1.3,
+      "position": [680, 400],
+      "credentials": {
+        "googleCalendarOAuth2Api": {
+          "id": "GCAL_CREDENTIAL_ID",
+          "name": "Google Calendar — ZURA"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "leftValue": "",
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "cond-001",
+              "leftValue": "={{ $input.all().length }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "d1000004-feed-beef-cafe-000000000004",
+      "name": "¿Hay cambios en GCal?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [900, 400]
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "id": "d1000005-feed-beef-cafe-000000000005",
+      "name": "Sin cambios",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [1120, 540]
+    },
+    {
+      "parameters": {
+        "batchSize": 1,
+        "options": {}
+      },
+      "id": "d1000006-feed-beef-cafe-000000000006",
+      "name": "Loop por evento",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [1120, 320]
+    },
+    {
+      "parameters": {
+        "jsCode": "const evento = $input.first().json;\n\n// Determinar el nuevo estado en BD según el estado en GCal\nlet nuevoEstado = null;\nconst status = evento.status;\n\nif (status === 'cancelled') {\n  nuevoEstado = 'cancelada';\n} else if (status === 'confirmed') {\n  nuevoEstado = 'confirmada';\n} else if (status === 'tentative') {\n  nuevoEstado = 'pendiente';\n}\n\nconst inicio = evento.start?.dateTime || evento.start?.date || null;\nconst fin = evento.end?.dateTime || evento.end?.date || null;\n\nreturn [{\n  json: {\n    google_event_id: evento.id,\n    gcal_status: status,\n    nuevo_estado: nuevoEstado,\n    inicio,\n    fin,\n    titulo: evento.summary || null,\n    descripcion: evento.description || null\n  },\n  pairedItem: { item: 0 }\n}];"
+      },
+      "id": "d1000007-feed-beef-cafe-000000000007",
+      "name": "Mapear estado GCal a BD",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1340, 320]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "leftValue": "",
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "cond-001",
+              "leftValue": "={{ $json.nuevo_estado }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "d1000008-feed-beef-cafe-000000000008",
+      "name": "¿Estado válido?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [1560, 320]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "=UPDATE citas\nSET\n  estado = '{{ $json.nuevo_estado }}'::estado_cita_enum,\n  inicio = COALESCE('{{ $json.inicio }}'::timestamptz, inicio),\n  fin = COALESCE('{{ $json.fin }}'::timestamptz, fin),\n  titulo = COALESCE(NULLIF('{{ $json.titulo }}', ''), titulo),\n  descripcion = COALESCE(NULLIF('{{ $json.descripcion }}', ''), descripcion),\n  updated_at = NOW()\nWHERE google_event_id = '{{ $json.google_event_id }}'\n  AND empresa_id = (SELECT empresa_id FROM instancias_whatsapp WHERE evolution_instance_name = 'SKC' LIMIT 1)\nRETURNING id, google_event_id, estado",
+        "options": {}
+      },
+      "id": "d1000009-feed-beef-cafe-000000000009",
+      "name": "Actualizar cita en BD",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [1780, 240],
+      "credentials": {
+        "postgres": {
+          "id": "POSTGRES_CREDENTIAL_ID",
+          "name": "PostgreSQL — ChatbotSKC"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "id": "d1000010-feed-beef-cafe-000000000010",
+      "name": "Evento sin cita en BD",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [1780, 400]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO error_log (empresa_id, origen, error_code, mensaje)\nSELECT empresa_id, 'gcal_sync', 'SYNC_ERROR', 'Error sincronizando evento GCal'\nFROM instancias_whatsapp WHERE evolution_instance_name = 'SKC' LIMIT 1",
+        "options": {}
+      },
+      "id": "d1000011-feed-beef-cafe-000000000011",
+      "name": "Registrar error sync",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [2000, 320],
+      "credentials": {
+        "postgres": {
+          "id": "POSTGRES_CREDENTIAL_ID",
+          "name": "PostgreSQL — ChatbotSKC"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO audit_log (empresa_id, tabla, operacion, registro_id, datos_nuevos)\nSELECT\n  (SELECT empresa_id FROM instancias_whatsapp WHERE evolution_instance_name = 'SKC' LIMIT 1),\n  'gcal_sync',\n  'SYNC',\n  gen_random_uuid(),\n  jsonb_build_object('evento_id', '{{ $json.google_event_id }}', 'estado', '{{ $json.estado }}')\nLIMIT 1",
+        "options": {}
+      },
+      "id": "d1000012-feed-beef-cafe-000000000012",
+      "name": "Registrar sync en audit",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [2000, 180],
+      "credentials": {
+        "postgres": {
+          "id": "POSTGRES_CREDENTIAL_ID",
+          "name": "PostgreSQL — ChatbotSKC"
+        }
+      },
+      "onError": "continueRegularOutput"
+    }
+  ],
+  "connections": {
+    "Cron cada 30 min": {
+      "main": [
+        [
+          {
+            "node": "Obtener último sync",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Obtener último sync": {
+      "main": [
+        [
+          {
+            "node": "Listar eventos modificados",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Listar eventos modificados": {
+      "main": [
+        [
+          {
+            "node": "¿Hay cambios en GCal?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Hay cambios en GCal?": {
+      "main": [
+        [
+          {
+            "node": "Loop por evento",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Sin cambios",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop por evento": {
+      "main": [
+        [
+          {
+            "node": "Mapear estado GCal a BD",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mapear estado GCal a BD": {
+      "main": [
+        [
+          {
+            "node": "¿Estado válido?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Estado válido?": {
+      "main": [
+        [
+          {
+            "node": "Actualizar cita en BD",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Evento sin cita en BD",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Actualizar cita en BD": {
+      "main": [
+        [
+          {
+            "node": "Registrar sync en audit",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Registrar error sync",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Registrar sync en audit": {
+      "main": [
+        [
+          {
+            "node": "Loop por evento",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "America/Mexico_City",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "versionId": "d1000000-0000-0000-0000-000000000001",
+  "id": "gcal-sync-chatbotskc",
+  "tags": [
+    { "name": "chatbot-skc" },
+    { "name": "gcal-sync" }
+  ]
+}

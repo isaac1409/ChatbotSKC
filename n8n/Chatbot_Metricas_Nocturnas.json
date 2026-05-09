@@ -1,0 +1,304 @@
+{
+  "name": "Chatbot_Metricas_Nocturnas",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "58 23 * * *"
+            }
+          ]
+        }
+      },
+      "id": "c1000001-feed-beef-cafe-000000000001",
+      "name": "Cron 11:58PM diario",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [240, 400]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT calcular_metricas_diarias(\n  (SELECT empresa_id FROM instancias_whatsapp WHERE evolution_instance_name = 'SKC' LIMIT 1),\n  CURRENT_DATE\n) AS resultado",
+        "options": {}
+      },
+      "id": "c1000002-feed-beef-cafe-000000000002",
+      "name": "Calcular métricas del día",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [460, 400],
+      "credentials": {
+        "postgres": {
+          "id": "POSTGRES_CREDENTIAL_ID",
+          "name": "PostgreSQL — ChatbotSKC"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT\n  m.fecha,\n  m.total_mensajes,\n  m.usuarios_nuevos,\n  m.citas_agendadas,\n  m.citas_canceladas,\n  m.citas_completadas,\n  m.tasa_conversion,\n  m.tiempo_respuesta_avg_seg,\n  (\n    SELECT COUNT(*) FROM citas c\n    JOIN instancias_whatsapp iw ON c.empresa_id = iw.empresa_id\n    WHERE iw.evolution_instance_name = 'SKC'\n      AND c.estado IN ('pendiente', 'confirmada')\n      AND c.inicio > NOW()\n  ) AS citas_proximas_activas,\n  (\n    SELECT COUNT(*) FROM error_log el\n    JOIN instancias_whatsapp iw ON el.empresa_id = iw.empresa_id\n    WHERE iw.evolution_instance_name = 'SKC'\n      AND el.resuelto = false\n  ) AS errores_pendientes\nFROM metricas_diarias m\nJOIN instancias_whatsapp iw ON m.empresa_id = iw.empresa_id\nWHERE iw.evolution_instance_name = 'SKC'\n  AND m.fecha = CURRENT_DATE\nLIMIT 1",
+        "options": {}
+      },
+      "id": "c1000003-feed-beef-cafe-000000000003",
+      "name": "Obtener resumen del día",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [680, 400],
+      "credentials": {
+        "postgres": {
+          "id": "POSTGRES_CREDENTIAL_ID",
+          "name": "PostgreSQL — ChatbotSKC"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const d = $input.first().json;\n\nconst fecha = d.fecha ? new Date(d.fecha).toLocaleDateString('es-MX', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', timeZone: 'America/Mexico_City' }) : 'Hoy';\n\nconst tasa = d.tasa_conversion !== null ? `${(parseFloat(d.tasa_conversion) * 100).toFixed(1)}%` : 'N/A';\nconst tiempoResp = d.tiempo_respuesta_avg_seg !== null ? `${parseFloat(d.tiempo_respuesta_avg_seg).toFixed(1)}s` : 'N/A';\n\nconst errAlert = parseInt(d.errores_pendientes || 0) > 0 ? `\\n⚠️ *Errores pendientes:* ${d.errores_pendientes} — revisar error_log` : '';\n\nconst mensaje = `📊 *Reporte Diario — ZURA Solutions*\n🗓 ${fecha}\n\n💬 *Mensajes procesados:* ${d.total_mensajes || 0}\n👥 *Usuarios nuevos:* ${d.usuarios_nuevos || 0}\n📅 *Citas agendadas:* ${d.citas_agendadas || 0}\n✅ *Citas completadas:* ${d.citas_completadas || 0}\n❌ *Citas canceladas:* ${d.citas_canceladas || 0}\n🎯 *Tasa conversación:* ${tasa}\n⚡ *Tiempo respuesta:* ${tiempoResp}\n\n📆 *Citas activas próximas:* ${d.citas_proximas_activas || 0}${errAlert}`;\n\nreturn [{ json: { mensaje }, pairedItem: { item: 0 } }];"
+      },
+      "id": "c1000004-feed-beef-cafe-000000000004",
+      "name": "Formatear reporte",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [900, 400]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT valor AS numero_admin FROM config_negocio cn\nJOIN instancias_whatsapp iw ON cn.empresa_id = iw.empresa_id\nWHERE iw.evolution_instance_name = 'SKC'\n  AND cn.campo = 'numero_admin'\nLIMIT 1",
+        "options": {}
+      },
+      "id": "c1000005-feed-beef-cafe-000000000005",
+      "name": "Obtener número admin",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [1120, 280],
+      "credentials": {
+        "postgres": {
+          "id": "POSTGRES_CREDENTIAL_ID",
+          "name": "PostgreSQL — ChatbotSKC"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT valor AS grupo_whatsapp FROM config_negocio cn\nJOIN instancias_whatsapp iw ON cn.empresa_id = iw.empresa_id\nWHERE iw.evolution_instance_name = 'SKC'\n  AND cn.campo = 'grupo_whatsapp'\nLIMIT 1",
+        "options": {}
+      },
+      "id": "c1000006-feed-beef-cafe-000000000006",
+      "name": "Obtener grupo WA",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [1120, 520],
+      "credentials": {
+        "postgres": {
+          "id": "POSTGRES_CREDENTIAL_ID",
+          "name": "PostgreSQL — ChatbotSKC"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://{{ $vars.EVOLUTION_HOST }}/message/sendText/SKC",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "number",
+              "value": "={{ $('Obtener número admin').first().json.numero_admin }}"
+            },
+            {
+              "name": "text",
+              "value": "={{ $('Formatear reporte').first().json.mensaje }}"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 10000
+        }
+      },
+      "id": "c1000007-feed-beef-cafe-000000000007",
+      "name": "Enviar reporte a admin",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1340, 280],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "EVOLUTION_CREDENTIAL_ID",
+          "name": "Evolution API — SKC"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://{{ $vars.EVOLUTION_HOST }}/message/sendText/SKC",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "number",
+              "value": "={{ $('Obtener grupo WA').first().json.grupo_whatsapp }}"
+            },
+            {
+              "name": "text",
+              "value": "={{ $('Formatear reporte').first().json.mensaje }}"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 10000
+        }
+      },
+      "id": "c1000008-feed-beef-cafe-000000000008",
+      "name": "Enviar reporte a grupo",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1340, 520],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "EVOLUTION_CREDENTIAL_ID",
+          "name": "Evolution API — SKC"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO error_log (empresa_id, origen, error_code, mensaje)\nSELECT empresa_id, 'metricas_nocturnas', 'REPORT_SEND_FAILED', 'Error enviando reporte nocturno'\nFROM instancias_whatsapp WHERE evolution_instance_name = 'SKC' LIMIT 1",
+        "options": {}
+      },
+      "id": "c1000009-feed-beef-cafe-000000000009",
+      "name": "Registrar error reporte",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [1560, 400],
+      "credentials": {
+        "postgres": {
+          "id": "POSTGRES_CREDENTIAL_ID",
+          "name": "PostgreSQL — ChatbotSKC"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Cron 11:58PM diario": {
+      "main": [
+        [
+          {
+            "node": "Calcular métricas del día",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Calcular métricas del día": {
+      "main": [
+        [
+          {
+            "node": "Obtener resumen del día",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Obtener resumen del día": {
+      "main": [
+        [
+          {
+            "node": "Formatear reporte",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Formatear reporte": {
+      "main": [
+        [
+          {
+            "node": "Obtener número admin",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Obtener grupo WA",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Obtener número admin": {
+      "main": [
+        [
+          {
+            "node": "Enviar reporte a admin",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Obtener grupo WA": {
+      "main": [
+        [
+          {
+            "node": "Enviar reporte a grupo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Enviar reporte a admin": {
+      "main": [
+        [],
+        [
+          {
+            "node": "Registrar error reporte",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Enviar reporte a grupo": {
+      "main": [
+        [],
+        [
+          {
+            "node": "Registrar error reporte",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "America/Mexico_City",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "versionId": "c1000000-0000-0000-0000-000000000001",
+  "id": "metricas-nocturnas-chatbotskc",
+  "tags": [
+    { "name": "chatbot-skc" },
+    { "name": "metricas" }
+  ]
+}

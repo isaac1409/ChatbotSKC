@@ -1,20 +1,49 @@
-# macOS
-.DS_Store
+# ── Secrets / credenciales ──────────────────────────────────────────────────
+.env
+.env.local
+.env.*.local
+credentials.json
+*.pem
+*.key
+service_account*.json
 
-# Python
+# ── Backups (generados por scripts/backup_db.sh) ────────────────────────────
+backups/
+*.sql.gz
+
+# ── Logs ────────────────────────────────────────────────────────────────────
+*.log
+/tmp/
+
+# ── macOS ────────────────────────────────────────────────────────────────────
+.DS_Store
+.AppleDouble
+.LSOverrideFile
+
+# ── Windows ──────────────────────────────────────────────────────────────────
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# ── Node / n8n ───────────────────────────────────────────────────────────────
+node_modules/
+.n8n/
+n8n_data/
+
+# ── Python ───────────────────────────────────────────────────────────────────
 __pycache__/
 *.pyc
 *.pyo
 *.pyd
 venv/
-.env
+.venv/
 
-# Docker
-*.log
+# ── Docker (volúmenes locales, no el compose file) ───────────────────────────
+postgres_data/
+redis_data/
 
-# Node / n8n
-node_modules/
-credentials.json
-
-# OS
-Thumbs.db
+# ── IDE ──────────────────────────────────────────────────────────────────────
+.vscode/
+.idea/
+*.swp
+*.swo

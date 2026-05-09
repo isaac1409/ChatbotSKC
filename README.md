@@ -1,8 +1,6 @@
 # ChatbotSKC
 
-Repositorio de workflows de n8n para chatbots de WhatsApp con IA, desarrollados por el equipo de **Innovasoft Solutions (SKC)**.
-
-Cada workflow es un agente conversacional completo: recibe mensajes de WhatsApp, los procesa con IA, consulta calendarios, gestiona citas y notifica por múltiples canales — todo configurado desde Google Sheets sin tocar el workflow.
+Workflows de n8n para chatbots de WhatsApp con IA, desarrollados por **Innovasoft Solutions (SKC)**. El stack completo incluye agente conversacional con IA, gestión de citas en Google Calendar, base de datos PostgreSQL propia, y notificaciones multi-canal.
 
 ---
 
@@ -12,10 +10,12 @@ Cada workflow es un agente conversacional completo: recibe mensajes de WhatsApp,
 |---|---|
 | Orquestación | n8n 1.123.21 (Easypanel) |
 | Mensajería | Evolution API v2.3.7 |
-| IA principal | OpenAI gpt-4.1 |
+| IA principal | OpenAI gpt-4.1 (tool calling) |
+| IA visión | OpenAI gpt-4o-mini |
+| IA audio | Whisper |
 | Calendario | Google Calendar (OAuth2) |
-| Config dinámica | Google Sheets |
-| Memoria conversacional | Postgres Chat Memory |
+| Config dinámica | PostgreSQL `config_negocio` |
+| Memoria conversacional | Postgres Chat Memory (`n8n_chat_histories`) |
 | Buffer de mensajes | Redis |
 | Base de datos | PostgreSQL 15 |
 | Infraestructura | Easypanel |
@@ -26,122 +26,124 @@ Cada workflow es un agente conversacional completo: recibe mensajes de WhatsApp,
 
 ```
 ChatbotSKC/
-├── CLAUDE.md                        ← contexto para Claude Code (no modificar)
+├── CLAUDE.md                        ← contexto para Claude Code
 ├── README.md                        ← este archivo
-├── docs/
-│   └── CLAUDE_CHATBOT_CONTEXT.md    ← referencia técnica completa del stack
-└── workflows/
-    └── Chatbot_Isaac_v10.json       ← workflow exportado desde n8n
-```
-
-### Convención de nombres para workflows
-
-```
-Chatbot_[Nombre]_v[N].json
-```
-
-Ejemplos:
-```
-Chatbot_Isaac_v10.json
-Chatbot_Ivan_v1.json
-Chatbot_Kevin_v1.json
+├── .env.example                     ← variables de entorno requeridas
+├── docker-compose.yml               ← entorno local de desarrollo
+│
+├── database/                        ← SQL de la base de datos
+│   ├── 01_schema_ddl.sql            ← DDL: tablas, tipos, índices, seeds
+│   ├── 02_indexes.sql               ← Índices estratégicos (CONCURRENTLY)
+│   ├── 03_triggers.sql              ← Triggers: overlap, audit, autobaneo
+│   ├── 04_functions.sql             ← Funciones PL/pgSQL + 3 vistas
+│   ├── 05_migration.sql             ← Migra historial → tabla usuarios
+│   └── 06_test_fixtures.sql         ← Test suite (solo staging)
+│
+├── n8n/                             ← Workflows exportados de n8n
+│   ├── Chatbot_Principal_v2.json    ← Workflow principal (importar a n8n)
+│   ├── Chatbot_Recordatorio_24h.json ← Sub-workflow: recordatorio 24h
+│   ├── Chatbot_Metricas_Nocturnas.json ← Sub-workflow: reporte diario 23:58
+│   └── Chatbot_GCal_Sync.json       ← Sub-workflow: sincronizar GCal → BD
+│
+├── scripts/                         ← Scripts de operación
+│   ├── init_db.sh                   ← Inicializar BD desde cero
+│   ├── backup_db.sh                 ← Backup con rotación (últimos 7)
+│   ├── test_db.sh                   ← Ejecutar test suite en staging
+│   ├── cleanup_db.sh                ← Destruir tablas (solo dev)
+│   └── cleanup_repo.sh              ← Eliminar carpetas legacy
+│
+├── monitoring/                      ← Monitoreo y diagnóstico
+│   ├── queries_debug.sql            ← Queries de diagnóstico en producción
+│   └── health_check.sh              ← Health check de todos los servicios
+│
+├── docs/                            ← Documentación técnica
+│   ├── analysis/ANALISIS_SISTEMA.md ← Análisis crítico del sistema
+│   ├── n8n/WORKFLOW_ARCHITECTURE.md ← Arquitectura de los 13 sub-módulos
+│   └── rollout/PLAN_ROLLOUT.md      ← Plan de rollout día a día
+│
+└── workflows/                       ← Versiones legacy (referencia)
+    └── Chatbot_Prod_V1.json
 ```
 
 ---
 
-## Cómo trabajar en este repo
-
-### Ramas
-
-Cada desarrollador trabaja en su propia rama. Los workflows no se mezclan.
-
-| Rama | Responsable |
-|---|---|
-| `main` | Versiones estables aprobadas |
-| `isaac` | Isaac |
-| `ivan` | Ivan |
-| `kevin` | Kevin |
-
-### Flujo para actualizar un workflow
+## Inicio rápido — Base de datos
 
 ```bash
-# 1. Posicionarte en tu rama
-git checkout isaac   # o ivan / kevin
+# 1. Copiar variables de entorno
+cp .env.example .env
+# Editar .env con credenciales reales
 
-# 2. Exportar el workflow desde n8n
-#    n8n → tu workflow → ⋮ → Download
-#    Guardar el JSON en workflows/ con el nombre correcto
+# 2. Inicializar BD (ejecuta DDL + triggers + funciones + índices)
+./scripts/init_db.sh
 
-# 3. Commitear
-git add workflows/Chatbot_Isaac_vX.json
-git commit -m "feat: descripción del cambio — Chatbot_Isaac vX"
-git push origin isaac
+# 3. Migrar historial existente (n8n_chat_histories → usuarios)
+psql -f database/05_migration.sql
 
-# 4. Cuando la versión es estable → Pull Request a main
+# 4. Cargar config real (ver docs/rollout/PLAN_ROLLOUT.md paso 1.3)
 ```
 
-### Reglas
+## Inicio rápido — n8n
 
-- **Nunca editar los archivos `.json` a mano** — son exportaciones directas de n8n y se corrompen fácilmente.
-- **Nunca commitear credenciales** — las variables de entorno se gestionan en Easypanel.
-- Un archivo por workflow, un workflow por cliente.
-- Siempre incluir el número de versión en el nombre del archivo.
+1. n8n → **Workflows** → `+` → **Import from file**
+2. Importar `n8n/Chatbot_Principal_v2.json`
+3. Reasignar credenciales (ver tabla abajo)
+4. Importar y activar los 3 sub-workflows
+5. Verificar con mensaje de prueba desde el número admin
 
 ---
 
-## Cómo importar un workflow a n8n
+## Credenciales a configurar tras importar
 
-1. Abrir n8n → **Workflows** → botón `+` → **Import from file**
-2. Seleccionar el `.json` de la carpeta `workflows/`
-3. Configurar las credenciales (ver sección siguiente)
-4. Activar el workflow
-
-> ⚠️ Al importar, las credenciales no se transfieren. Hay que reasignarlas manualmente antes de activar.
-
-### Credenciales a configurar tras cada importación
-
-| Credencial | Tipo | Nodos que la usan |
+| Credencial | Tipo | Nodos |
 |---|---|---|
-| Google Sheets account | OAuth2 | Leer config negocio |
-| Google Calendar account | OAuth2 | agendar_cita, cancelar_cita, consultar_citas |
+| PostgreSQL | Host/DB/User/Pass | Todos los nodos Postgres |
+| Google Calendar | OAuth2 | agendar_cita, cancelar_cita, consultar_citas |
 | OpenAI | API Key | AI Agent, Analizar imagen, Transcribir audio |
-| Redis | Host / Port | Buffer de mensajes |
-| PostgreSQL | Host / DB / User / Pass | Postgres Chat Memory |
-| Evolution API | Header Auth (apikey) | HTTP Request — envío de mensajes |
+| Redis | Host/Port/Pass | Buffer de mensajes |
+| Evolution API | Header Auth (apikey) | HTTP Requests envío WA |
+
+> ⚠️ Las credenciales no se transfieren al importar. Reasignarlas antes de activar.
 
 ---
 
-## Acceso a servicios (Easypanel)
+## Sub-workflows
 
-| Servicio | URL |
-|---|---|
-| n8n | `https://[n8n.tudominio.com]` |
-| Evolution API | `https://[evolution.tudominio.com]` |
-| PostgreSQL | interno Easypanel |
-| Redis | interno Easypanel |
+| Archivo | Trigger | Función |
+|---|---|---|
+| `Chatbot_Recordatorio_24h.json` | Cron `0 9 * * 1-5` | Envía WA a clientes con cita en las próximas 24h |
+| `Chatbot_Metricas_Nocturnas.json` | Cron `58 23 * * *` | Calcula métricas del día y envía reporte al admin |
+| `Chatbot_GCal_Sync.json` | Cron `*/30 * * * *` | Sincroniza cambios de GCal → tabla `citas` |
+
+---
+
+## Reglas del repositorio
+
+- **No editar los `.json` a mano** — son exportaciones directas de n8n
+- **No commitear credenciales** — se gestionan en Easypanel / n8n Credentials
+- Un archivo por workflow, un workflow por cliente
+- Siempre incluir número de versión: `Chatbot_[Cliente]_v[N].json`
+- Commits en español: `feat:`, `fix:`, `docs:`, `chore:`
+
+---
+
+## Checklist antes de activar en producción
+
+```
+□ Credenciales reasignadas en todos los nodos
+□ Config cargada en config_negocio (sin valores 'REEMPLAZAR_CON_...')
+□ modo_prueba = true durante testing
+□ Test suite pasó: ./scripts/test_db.sh
+□ Health check: ./monitoring/health_check.sh
+□ modo_prueba = false antes de activar
+□ JSON commiteado en el repo antes de activar
+□ Sub-workflows activos: Recordatorio, Métricas, GCal Sync
+```
 
 ---
 
 ## Documentación técnica
 
-La referencia completa del stack está en [`docs/CLAUDE_CHATBOT_CONTEXT.md`](docs/CLAUDE_CHATBOT_CONTEXT.md):
-
-- Arquitectura del workflow y flujo de datos
-- Estructura de configuración en Google Sheets
-- Bugs conocidos y sus fixes
-- Reglas del AI Agent y system prompt
-- Proceso de testing antes de producción
-- Historial de versiones
-
----
-
-## Checklist antes de activar un workflow en producción
-
-```
-□ Credenciales reasignadas en todos los nodos
-□ Hoja config en Google Sheets completa (nombre_agente, horario_inicio, horario_fin, duracion_reunion, numero_admin, correo_admin, grupo_whatsapp, modo_prueba)
-□ modo_prueba = true durante el testing
-□ Los 9 casos de prueba pasaron (ver docs/)
-□ modo_prueba = false antes de activar en producción
-□ JSON del workflow commiteado en el repo antes de activar
-```
+- [`docs/analysis/ANALISIS_SISTEMA.md`](docs/analysis/ANALISIS_SISTEMA.md) — análisis crítico y comparativa
+- [`docs/n8n/WORKFLOW_ARCHITECTURE.md`](docs/n8n/WORKFLOW_ARCHITECTURE.md) — arquitectura de los 13 sub-módulos
+- [`docs/rollout/PLAN_ROLLOUT.md`](docs/rollout/PLAN_ROLLOUT.md) — plan de rollout día a día con validaciones y rollback
