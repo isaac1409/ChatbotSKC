@@ -1,0 +1,2691 @@
+{
+  "name": "Chatbot_ZURA_v4",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "aa0cdd49-6d3b-4a28-a690-7be70d4ffe70",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        -1584,
+        48
+      ],
+      "id": "7fab87d7-3bd7-44db-a178-e0143f1ee3e5",
+      "name": "Webhook",
+      "webhookId": "aa0cdd49-6d3b-4a28-a690-7be70d4ffe70"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.entradaIA }}",
+        "options": {
+          "systemMessage": "=Eres {{ $('Formatear config').first().json.nombre_agente }}, la asistente virtual de {{ $('Formatear config').first().json.nombre_empresa }}.\nTu trabajo: responder dudas sobre los servicios y agendar reuniones de discovery.\n\nINFORMACION DEL NEGOCIO:\n{{ $('Formatear config').first().json.businessInfo }}\n\n-----------------------------------------------\nIDENTIDAD Y TONO\n-----------------------------------------------\nPRESENTACIÓN — árbol de decisión:\n  Sin historial → preséntate siempre primero, luego atiende lo que pidió.\n  Con historial + saludo genérico → \"¡Hola de nuevo! 😊 Soy [nombre], dime ¿en qué puedo ayudarte?\"\n  Con historial + mensaje concreto → omite presentación, ve directo.\n\nTono: cálido, cercano. Informal sin perder profesionalismo.\nMensajes cortos: máximo 3-4 líneas. Sin guiones ni asteriscos. Horario en 12h AM/PM.\nNo menciones workflows, nodos ni configuraciones internas.\nEmojis: máximo 2 por mensaje.\n  Saludo: 👋 😊 | Citas: 📅 ⏰ | Éxito: ✅ 🎉 | Cancelar: ❌ | Reagendar: 🔄 | Error: ⚠️\n\n-----------------------------------------------\nPREGUNTAS SOBRE EL NEGOCIO\n-----------------------------------------------\nUsa solo la información del negocio. Si no tienes el dato: \"No tengo esa info ahorita, pero puedo conectarte con el equipo 😊\"\n\n-----------------------------------------------\nFORMATO AL LISTAR SERVICIOS\n-----------------------------------------------\nSolo cuando el usuario pregunte por servicios: línea intro + lista con emoji + pregunta de calificación.\nUn servicio por línea con emoji relevante y precio. Nunca en respuestas conversacionales normales.\n\nLista de servicios y precios actuales (adaptar al idioma del usuario, añadir emojis según servicio):\n{{ $('Formatear config').first().json.precios }}\n-----------------------------------------------\nCALIFICACION DE LEADS\n-----------------------------------------------\nCuando alguien muestre interés real, recopila: nombre, empresa, servicio, problema, teléfono, email.\nMáximo 2 preguntas por mensaje. No pidas datos ya dados. No comprometas precios ni fechas sin contrato.\n\n-----------------------------------------------\nHERRAMIENTAS DE CALENDARIO (USO INTERNO)\n-----------------------------------------------\nEl usuario no sabe que existen. Nunca las menciones.\nTodos los parámetros en ISO 8601 con offset -06:00. Timezone siempre America/Mexico_City.\nEl número del usuario es {{ $json.number }} — identificador único en el sistema.\nNunca inventes un eventId. Siempre obtenlo de consultar_citas.\n\nCASOS DE CONSULTAR_CITAS:\n  CASO 1 — slot específico:\n    After = hora inicio | Before = After + {{ $('Formatear config').first().json.duracion_reunion }} min\n    Vacío = LIBRE. Con eventos = OCUPADO (cualquier evento, sin filtrar por número).\n\n  CASO 2 — localizar cita del usuario (±3 días):\n    After = fecha_mencionada −3d 00:00:00-06:00 | Before = fecha_mencionada +3d 23:59:00-06:00\n    Filtra: solo eventos cuya Description contenga {{ $json.number }}.\n    Si hay varios, cruza por nombre. Si ninguno coincide → tratar como vacío.\n\n  CASO 3 — próximas citas sin fecha específica:\n    After = hoy 00:00:00-06:00 | Before = hoy +14d 23:59:00-06:00\n    Filtra por {{ $json.number }} en Description.\n\nAGENDAR_CITA:\n  Usar solo tras consultar_citas (CASO 1) vacío + confirmación explícita del usuario.\n  Start/End en ISO 8601 -06:00. End = Start + {{ $('Formatear config').first().json.duracion_reunion }} min.\n  Summary = nombre — empresa\n  Description = Tel: {{ $json.number }} | Servicio: [servicio] | Problema: [problema]\n  Timezone = America/Mexico_City\n\nCANCELAR_CITA:\n  Usar solo con eventId real de consultar_citas + confirmación explícita del usuario.\n\n-----------------------------------------------\nREGLAS GLOBALES\n-----------------------------------------------\nHORARIO VÁLIDO: lunes–viernes {{ $('Formatear config').first().json.horario_inicio }}–{{ $('Formatear config').first().json.horario_fin }}.\nVerifica horario ANTES de llamar a consultar_citas. Si está fuera de rango, responde directamente sin llamar ninguna tool:\n\"Nuestras reuniones son de lunes a viernes entre {{ $('Formatear config').first().json.horario_inicio }} y {{ $('Formatear config').first().json.horario_fin }} ⏰ ¿Tienes algún horario en ese rango?\"\nVerifica también que Start + duración no exceda {{ $('Formatear config').first().json.horario_fin }}.\n\nFLUJO ABANDONADO: si mostraste un resumen de confirmación y el siguiente mensaje no es una afirmación/negación directa → flujo cancelado. Responde lo que pidió. El usuario reinicia desde cero si quiere.\n\n-----------------------------------------------\nFLUJO: CONSULTAR CITAS PRÓXIMAS\n-----------------------------------------------\nTrigger: usuario pregunta si tiene citas sin dar fecha concreta.\n1. consultar_citas (CASO 3).\n2. Sin resultados con su número: \"No encontré citas próximas en los siguientes 14 días 😊 ¿Agendamos una?\"\n3. Con resultados: lista las citas encontradas y pregunta si desea hacer algún cambio.\n\n-----------------------------------------------\nFLUJO: AGENDAR CITA NUEVA\n-----------------------------------------------\nP1. Recopilar: nombre, empresa, servicio, problema, teléfono, email. Máx 2 preguntas.\nP2. Validar horario (REGLA GLOBAL). Si inválido, detener.\nP3. consultar_citas (CASO 1). Con eventos → ocupado, pide otro horario. Sin eventos → P4.\nP4. Mostrar resumen y pedir confirmación:\n    \"Perfecto [nombre] 📋 📅 [día] [fecha] [hora] 👤 [nombre]—[empresa] 💎 [servicio] ¿Todo correcto?\"\n    NO ejecutes agendar_cita. Espera confirmación. Si mensaje off-topic → flujo abandonado.\nP5. Tras confirmación: agendar_cita → confirmar al usuario.\n\n-----------------------------------------------\nFLUJO: REAGENDAR CITA\n-----------------------------------------------\nP1. Pedir: nombre registrado + fecha aproximada. El número ya está en el sistema.\nP2. consultar_citas (CASO 2).\nSin coincidencia de número → error, pide más datos.\n1 evento → mostrar datos, guardar eventId, ir a P3.\nVarios eventos → mostrar lista, preguntar cuál, guardar eventId elegido.\nP3. Pedir nuevo horario.\nP4. Validar horario (REGLA GLOBAL). consultar_citas (CASO 1).\nOcupado → pide otra opción. Libre → P5.\nP5. Mostrar resumen del cambio y pedir confirmación. Formato EXACTO obligatorio:\n\"Perfecto, así quedaría el cambio 🔄\n📅 Antes: [día] [fecha anterior] a las [hora anterior]\n📅 Ahora: [día] [fecha nueva] a las [hora nueva]\n👤 [nombre] — [empresa]\n¿Confirmas el cambio?\"\n\nDETENTE. No ejecutes ninguna herramienta. Espera ÚNICAMENTE sí o no.\nSi el mensaje no es afirmación/negación directa → flujo abandonado.\nP6. Tras confirmación explícita, ejecutar inmediatamente en este orden:\n- Si no tienes eventId en este turno: consultar_citas (CASO 2) con fecha anterior para obtenerlo, filtra por número.\n- cancelar_cita(eventId).\n- Si exitoso: agendar_cita(nuevo slot, Timezone: America/Mexico_City).\n- Confirmar al usuario: \"¡Listo! 🔄 Tu cita fue reagendada. 📅 [día] [fecha nueva] a las [hora nueva] Cualquier cambio, aquí estoy 😊\"\nSi cancelar_cita falla: \"Esa cita ya no está en el calendario 🤔 ¿Agendamos una nueva?\"\nREGLA ABSOLUTA: SIEMPRE cancelar_cita ANTES de agendar_cita. NUNCA dos citas activas del mismo cliente.\n\n-----------------------------------------------\nFLUJO: CANCELAR CITA\n-----------------------------------------------\nP1. Pedir: nombre registrado + fecha aproximada. El número ya está en el sistema.\nP2. consultar_citas (CASO 2) con fecha aproximada (±3 días).\nSin coincidencia de número → error, pide más datos.\n1 evento coincide → guarda en memoria: eventId, fecha, hora, nombre, empresa. Ir a P3.\nVarios eventos coinciden → mostrar lista, pedir cuál cancelar, guardar datos del elegido.\nP3. Mostrar datos con formato EXACTO y pedir confirmación:\n\"Encontré esta cita 📋\n📅 [día] [fecha] a las [hora]\n👤 [nombre] — [empresa]\n¿Confirmas la cancelación? ❌\"\n\nDETENTE AQUÍ. No preguntes nada más. No ejecutes nada.\nEspera ÚNICAMENTE una respuesta de sí o no del usuario.\nSi el mensaje no es afirmación/negación directa → flujo abandonado.\nP4. SOLO cuando el usuario confirma con sí/afirmación:\nPregunta el motivo con este mensaje exacto:\n\"¿Podrías decirme el motivo de la cancelación?\nEs solo para nuestro registro 📋\"\n\nDETENTE AQUÍ. Espera la respuesta del usuario antes de ejecutar cualquier tool.\nEste paso es OBLIGATORIO. No lo saltes aunque el usuario haya sido muy directo.\nSi el usuario responde \"no\", \"prefiero no decir\", \"no importa\" o similar → motivo = \"No especificado\".\nP5. SOLO cuando tengas el motivo (o la negativa explícita):\nEn este mismo turno ejecuta TODO de forma inmediata:\n5A. Re-llama a consultar_citas (CASO 2) con el mismo rango del P2.\n    Filtra por {{ $json.number }}. Usa el evento que coincide con el nombre y fecha.\n    IMPORTANTE: anota internamente todos los datos del evento encontrado\n    (eventId, summary, start, description) — los necesitas para la notificación.\n    NUNCA uses un eventId del turno anterior.\n\n5B. Llama a cancelar_cita con el eventId obtenido en 5A.\n\n5C. Confirma al usuario:\n    \"Tu cita del [fecha] a las [hora] fue cancelada ❌\n    Si necesitas reagendar, aquí estoy 😊\"\n\nSi 5A no devuelve eventos: \"No encontré esa cita 🤔 ¿Me das más detalles?\"\nFLUJO TERMINADO.\n\nSi cancelar_cita falla (error 410): \"Esa cita ya fue cancelada o no existe 🤔 ¿Necesitas algo más?\"\nFLUJO TERMINADO.\n\n-----------------------------------------------\nHORARIOS DISPONIBLES\n-----------------------------------------------\n1. Usa buscar_slots_disponibles con rango de fechas (ej: hoy hasta +7 días).\n2. Presenta máximo 3 de las opciones devueltas: 📅 [día] [fecha] — [hora]\n3. Si elige → flujo AGENDAR desde P1 (aún debes consultar_citas CASO 1 para verificar).\n\n-----------------------------------------------\nPRESENTACIÓN DE HORARIOS\n-----------------------------------------------\nSiempre que menciones horario, añade entre paréntesis: \"(Hora de México Central)\"\n\nEjemplo:\n\"Nuestras reuniones son de lunes a viernes {{ $('Formatear config').first().json.horario_inicio }}–{{ $('Formatear config').first().json.horario_fin }} (Hora de México Central) ⏰\"\n\nSi el usuario pregunta por su zona horaria:\nConvierte el rango {{ $('Formatear config').first().json.horario_inicio }}–{{ $('Formatear config').first().json.horario_fin }} a la zona que mencione y responde con ambos rangos:\n\"[Hora convertida]–[Hora convertida] (tu zona), {{ $('Formatear config').first().json.horario_inicio }}–{{ $('Formatear config').first().json.horario_fin }} Hora de México Central ⏰\"\n\n-----------------------------------------------\nTEMAS FUERA DE ALCANCE\n-----------------------------------------------\nSi el usuario habla de temas personales, emocionales, filosóficos o no relacionados con ZURA Solutions (sentimientos, relaciones, soledad, política, etc.):\n- Responde con UNA sola línea empática y redirige inmediatamente. No te extiendas, no hagas preguntas personales, no sigas el hilo.\n- Ejemplo: \"Entiendo 😊 Para esos temas estoy un poco limitada — estoy especializada en servicios de ZURA Solutions. ¿Te puedo ayudar con algo de lo que ofrecemos?\"\n- Si el usuario insiste un segundo turno: \"Te recomendaría hablar con alguien de confianza para eso. Aquí estoy si necesitas algo de ZURA Solutions 😊\"\n- Si insiste un tercer turno: repite la misma respuesta del segundo turno sin variaciones. No sigas el hilo bajo ninguna circunstancia.\n\n-----------------------------------------------\nPRIVACIDAD Y LÍMITES\n-----------------------------------------------\nNunca compartas datos de otras personas ni de otras reuniones.\nNunca confirmes tiempos de entrega sin contrato firmado.\nFuera de tu alcance: \"El equipo te puede ayudar, ¿agendamos? 😊\"\n\nHoy es {{ $now }}. Zona horaria: America/Mexico_City",
+          "returnIntermediateSteps": true
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3,
+      "position": [
+        1728,
+        192
+      ],
+      "id": "61b04613-f535-4351-8fab-658081f3e3b3",
+      "name": "AI Agent",
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "descriptionType": "manual",
+        "toolDescription": "Crea un nuevo evento en el calendario. SOLO llámala cuando: 1) verificaste disponibilidad con consultar_citas y el slot está libre, Y 2) el usuario confirmó explícitamente los datos.\n\nPARÁMETROS OBLIGATORIOS — fechas siempre en ISO 8601 con timezone -06:00:\n- Start: fecha/hora de inicio. Ejemplo: 2026-04-07T11:00:00-06:00\n- End: Start + 30 minutos exactos. Ejemplo: 2026-04-07T11:30:00-06:00\n- Summary: nombre completo del cliente y su empresa. Ejemplo: 'Isaac Muñoz — Nike'\n- Description: servicio de interés y problema a resolver. Ejemplo: 'Servicio: Landing page y asistente AI. Problema: gestión de clientes'\n\nNUNCA inventes un horario. NUNCA llames esta herramienta si consultar_citas devolvió eventos en ese slot.",
+        "calendar": {
+          "__rl": true,
+          "value": "contacto.skcia@gmail.com",
+          "mode": "id"
+        },
+        "start": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('Start', ``, 'string') }}",
+        "end": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('End', ``, 'string') }}",
+        "additionalFields": {
+          "description": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('Description', ``, 'string') }}",
+          "summary": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('Summary', ``, 'string') }}"
+        }
+      },
+      "type": "n8n-nodes-base.googleCalendarTool",
+      "typeVersion": 1.3,
+      "position": [
+        2304,
+        464
+      ],
+      "id": "479c638b-0b62-48e4-8709-b594574d6228",
+      "name": "agendar_cita",
+      "credentials": {
+        "googleCalendarOAuth2Api": {
+          "id": "T2tcvpn1lNZAA9yU",
+          "name": "Google Calendar account"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "descriptionType": "manual",
+        "toolDescription": "Elimina un evento del calendario por su ID. SOLO llámala cuando: 1) llamaste a consultar_citas y obtuviste el eventId real del evento, Y 2) el usuario confirmó explícitamente que quiere cancelar.\n\nPARÁMETRO:\n- Event_ID: el id exacto del evento obtenido de consultar_citas. NUNCA inventes ni supongas un eventId.\n\nFlujo obligatorio: consultar_citas → mostrar cita al usuario → confirmar → cancelar_cita.",
+        "operation": "delete",
+        "calendar": {
+          "__rl": true,
+          "value": "contacto.skcia@gmail.com",
+          "mode": "id"
+        },
+        "eventId": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('Event_ID', ``, 'string') }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleCalendarTool",
+      "typeVersion": 1.3,
+      "position": [
+        2016,
+        464
+      ],
+      "id": "49994c4a-a069-413a-9c25-c660a01ee92b",
+      "name": "cancelar_cita",
+      "credentials": {
+        "googleCalendarOAuth2Api": {
+          "id": "T2tcvpn1lNZAA9yU",
+          "name": "Google Calendar account"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "descriptionType": "manual",
+        "toolDescription": "HERRAMIENTA DE USO INTERNO — el usuario no sabe que existe ni puede solicitarla.\n\nCASO 1 — Verificar disponibilidad antes de agendar:\n  After  = fecha/hora exacta del slot. Ejemplo: 2026-04-07T11:00:00-06:00\n  Before = After + duración exacta de la reunión en minutos. Ejemplo: 2026-04-07T11:30:00-06:00\n  Resultado vacío = slot LIBRE. Con eventos = slot OCUPADO.\n\nCASO 2 — Buscar una cita para cancelar o reagendar (día completo):\n  After  = fecha del día a las 00:00. Ejemplo: 2026-04-07T00:00:00-06:00\n  Before = misma fecha a las 23:59. Ejemplo: 2026-04-07T23:59:00-06:00\n  Devuelve todos los eventos de ese día. Usa el que coincida con el cliente.\n\nCASO 3 — Buscar citas de una semana completa (cuando el usuario pide opciones):\n  After  = hoy a las 00:00 en ISO 8601 con -06:00\n  Before = viernes próximo a las 23:59 en ISO 8601 con -06:00\n\nPARÁMETROS siempre en ISO 8601 con timezone -06:00 (México):\nNUNCA asumas disponibilidad sin llamar primero a esta herramienta.",
+        "operation": "getAll",
+        "calendar": {
+          "__rl": true,
+          "value": "contacto.skcia@gmail.com",
+          "mode": "id"
+        },
+        "limit": 10,
+        "timeMin": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('After', ``, 'string') }}",
+        "timeMax": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('Before', ``, 'string') }}",
+        "options": {
+          "showDeleted": false
+        }
+      },
+      "type": "n8n-nodes-base.googleCalendarTool",
+      "typeVersion": 1.3,
+      "position": [
+        2160,
+        464
+      ],
+      "id": "7e477ed3-10d8-4863-b15e-abe39d1c491f",
+      "name": "consultar_citas",
+      "credentials": {
+        "googleCalendarOAuth2Api": {
+          "id": "T2tcvpn1lNZAA9yU",
+          "name": "Google Calendar account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=http://evolution_evolution-api:8080/message/sendText/{{ $('Webhook').first().json.body.instance }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "evolutionApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "content-type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "number",
+              "value": "={{ $('Obtener Datos').first().json.number }}"
+            },
+            {
+              "name": "text",
+              "value": "={{ $json.respuestaIA }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        2384,
+        192
+      ],
+      "id": "6f009040-8640-4d62-a50a-69913d94b3a4",
+      "name": "HTTP Request",
+      "credentials": {
+        "evolutionApi": {
+          "id": "eUGAJmc2zcXSn99R",
+          "name": "Evolution account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "options": {
+          "systemMessage": "Eres responsable de analizar el texto derivado de un análisis de imagen; puede contener texto. La idea es que le expliques al siguiente agente la intención del usuario con la foto que envió"
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3,
+      "position": [
+        1184,
+        368
+      ],
+      "id": "f7c6ca79-2879-4b3e-bf98-dca25ce2bfd2",
+      "name": "AI Agent1"
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "mode": "list",
+          "value": "gpt-4.1-mini"
+        },
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.2,
+      "position": [
+        1184,
+        560
+      ],
+      "id": "44abdb24-d45e-4ec7-a053-ce7c2806a850",
+      "name": "OpenAI Chat Model",
+      "credentials": {
+        "openAiApi": {
+          "id": "PY0UVhwlgAabSE6I",
+          "name": "OpenAi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "value": "gpt-4.1",
+          "mode": "list",
+          "cachedResultName": "gpt-4.1"
+        },
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.2,
+      "position": [
+        1680,
+        384
+      ],
+      "id": "aeeda468-375b-403c-b57b-8de7fea9ce87",
+      "name": "OpenAI Chat Model2",
+      "credentials": {
+        "openAiApi": {
+          "id": "PY0UVhwlgAabSE6I",
+          "name": "OpenAi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "c3c6c91a-1838-4b08-9332-1d64afbb28fa",
+              "name": "respuestaIA",
+              "value": "={{ $json.output }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        2208,
+        192
+      ],
+      "id": "dd66312e-05d3-4bb8-8188-5d3695c79ca1",
+      "name": "Edit Fields2"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "146d3840-4549-4c2e-954b-0c8c6c0ba348",
+              "name": "entradaIA",
+              "value": "={{ $json.output }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1472,
+        368
+      ],
+      "id": "600e1917-8feb-4bc9-af6d-6ee796a64a5b",
+      "name": "Edit Fields3"
+    },
+    {
+      "parameters": {
+        "operation": "push",
+        "list": "={{ 'zura:buf:' + $('Obtener Datos').first().json.number.split('@')[0] }}",
+        "messageData": "={{ JSON.stringify(\n{\n'mensaje': $json.entradaIA,\n\"numero\": $('Obtener Datos').first().json.number.split('@')[0],\n\"fecha\": $('Obtener Datos').first().json.fecha\n}\n)}}",
+        "tail": true
+      },
+      "type": "n8n-nodes-base.redis",
+      "typeVersion": 1,
+      "position": [
+        496,
+        192
+      ],
+      "id": "9f799758-c212-4c5f-8f77-a97c80627d20",
+      "name": "Buffer",
+      "credentials": {
+        "redis": {
+          "id": "WREkKb8SQFf4pN1u",
+          "name": "Redis account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "get",
+        "propertyName": "entradaIA",
+        "key": "={{ 'zura:buf:' + $('Obtener Datos').first().json.number.split('@')[0] }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.redis",
+      "typeVersion": 1,
+      "position": [
+        736,
+        192
+      ],
+      "id": "8aa16058-530c-454e-82b4-326008a8df63",
+      "name": "Obtener datos buffer",
+      "credentials": {
+        "redis": {
+          "id": "WREkKb8SQFf4pN1u",
+          "name": "Redis account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ JSON.parse($json.entradaIA.last()).numero }}",
+                    "rightValue": "={{ $('Obtener Datos').first().json.number.split(\"@\")[0] }}",
+                    "operator": {
+                      "type": "string",
+                      "operation": "notEquals"
+                    },
+                    "id": "c4117145-1bf0-4a83-8d69-fbf93357cbdd"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Ignorar"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "0bddce49-90d1-49c9-b3d8-e52d392517b3",
+                    "leftValue": "={{ JSON.parse($json.entradaIA.last()).fecha }}",
+                    "rightValue": "={{ $now.minus(5,'seconds').toLocal() }}",
+                    "operator": {
+                      "type": "dateTime",
+                      "operation": "before"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Continuar"
+            }
+          ]
+        },
+        "options": {
+          "fallbackOutput": "extra",
+          "renameFallbackOutput": "Esperar"
+        }
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.4,
+      "position": [
+        992,
+        176
+      ],
+      "id": "2b59b47e-cb0e-4b79-860e-2bd36b8017b8",
+      "name": "Switch1"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "f992192c-7ffe-488c-81e2-2dc2296ffe5b",
+              "name": "entradaIA",
+              "value": "={{ $json.entradaIA.map(item => JSON.parse(item).mensaje).join(\"\\n\") }}",
+              "type": "string"
+            },
+            {
+              "id": "5c8fa57b-e848-43e2-ba84-0c3c7147b43d",
+              "name": "number",
+              "value": "={{ $('Obtener Datos').first().json.number.split('@')[0] }}",
+              "type": "string"
+            },
+            {
+              "id": "407b5817-a3ee-4422-8c97-e920d84188c7",
+              "name": "sessionId",
+              "value": "={{ $('Obtener Datos').first().json.number.split('@')[0] }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1472,
+        192
+      ],
+      "id": "b0fdca60-ddc2-4e26-8207-7ddf603558ae",
+      "name": "Edit Fields5"
+    },
+    {
+      "parameters": {
+        "operation": "delete",
+        "key": "={{ 'zura:buf:' + $('Obtener Datos').first().json.number.split('@')[0] }}"
+      },
+      "type": "n8n-nodes-base.redis",
+      "typeVersion": 1,
+      "position": [
+        1248,
+        192
+      ],
+      "id": "09aa7b51-4b9a-4a0c-95af-2c0ca1bce916",
+      "name": "Borrar buffer",
+      "credentials": {
+        "redis": {
+          "id": "WREkKb8SQFf4pN1u",
+          "name": "Redis account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "version": 2,
+                  "leftValue": "",
+                  "caseSensitive": true,
+                  "typeValidation": "strict"
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "id": "2f9854ac-26b3-446c-9d0d-ae25157c61bb",
+                    "operator": {
+                      "type": "string",
+                      "operation": "notEmpty",
+                      "singleValue": true
+                    },
+                    "leftValue": "={{ $json.text }}",
+                    "rightValue": "="
+                  }
+                ]
+              },
+              "renameOutput": true,
+              "outputKey": "text"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "version": 2,
+                  "leftValue": "",
+                  "caseSensitive": true,
+                  "typeValidation": "strict"
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "id": "73b7d93a-928e-42ec-9c8e-ae8e9b97a867",
+                    "operator": {
+                      "type": "string",
+                      "operation": "notEmpty",
+                      "singleValue": true
+                    },
+                    "leftValue": "={{ $json.image.url }}",
+                    "rightValue": "="
+                  }
+                ]
+              },
+              "renameOutput": true,
+              "outputKey": "image"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "version": 2,
+                  "leftValue": "",
+                  "caseSensitive": true,
+                  "typeValidation": "strict"
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "id": "2f9915b9-e2b4-4528-ad36-515a848ab1be",
+                    "operator": {
+                      "type": "string",
+                      "operation": "notEmpty",
+                      "singleValue": true
+                    },
+                    "leftValue": "={{ $json.audio.url }}",
+                    "rightValue": "[null]"
+                  }
+                ]
+              },
+              "renameOutput": true,
+              "outputKey": "audio"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "version": 2,
+                  "leftValue": "",
+                  "caseSensitive": true,
+                  "typeValidation": "strict"
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "id": "9fcbe89a-c9d7-4dc6-bb6f-27c1cacbfddc",
+                    "operator": {
+                      "type": "string",
+                      "operation": "notEmpty",
+                      "singleValue": true
+                    },
+                    "leftValue": "={{ $json.document.url }}",
+                    "rightValue": "[null]"
+                  }
+                ]
+              },
+              "renameOutput": true,
+              "outputKey": "document"
+            }
+          ]
+        },
+        "options": {
+          "fallbackOutput": "extra",
+          "renameFallbackOutput": "invalido"
+        }
+      },
+      "id": "6a59adb8-e618-4906-90e1-b13720cb454e",
+      "name": "Switch Tipo Dato",
+      "type": "n8n-nodes-base.switch",
+      "position": [
+        -848,
+        0
+      ],
+      "typeVersion": 3.2
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "3e6335ae-74c3-4655-b68f-cdf0c68b864f",
+              "name": "number",
+              "type": "string",
+              "value": "={{ $json.body.data.key.remoteJid }}"
+            },
+            {
+              "id": "15f399cf-a98e-45e7-91ce-61b4fad340fd",
+              "name": "name",
+              "type": "string",
+              "value": "={{ $json.body.data.pushName }}"
+            },
+            {
+              "id": "b1943003-1f47-40e1-b418-6a52557ec44e",
+              "name": "key_id",
+              "type": "string",
+              "value": "={{ $json.body.data.key.id }}"
+            },
+            {
+              "id": "ed23194b-22ca-455b-a085-7dae706d0569",
+              "name": "text",
+              "type": "string",
+              "value": "={{ $json.body.data.message.conversation }}"
+            },
+            {
+              "id": "b35f8b61-da15-42e3-a078-4cd901e1f273",
+              "name": "type",
+              "type": "string",
+              "value": "={{ $json.body.data.message.imageMessage.mimetype }}"
+            },
+            {
+              "id": "a62bf96a-51aa-44c3-9e5d-f592e32a31d6",
+              "name": "image.url",
+              "type": "string",
+              "value": "={{ $json.body.data.message.imageMessage.url }}"
+            },
+            {
+              "id": "b004987d-3527-4040-a5e6-5fe06b25c9b9",
+              "name": "audio.url",
+              "type": "string",
+              "value": "={{ $json.body.data.message.audioMessage.url }}"
+            },
+            {
+              "id": "4c2cc03a-c104-4a87-9d31-6a7c256890ad",
+              "name": "document.url",
+              "type": "string",
+              "value": "={{ $json.body.data.message.documentMessage.url }}"
+            },
+            {
+              "id": "83bfd70f-f23b-4432-8ba1-d545878e02a1",
+              "name": "fecha",
+              "value": "={{ $json.body.data.messageTimestamp.toDateTime('s').toLocal() }}",
+              "type": "string"
+            },
+            {
+              "id": "f9e8d7c6-b5a4-3210-fedc-ba9876543210",
+              "name": "fromMe",
+              "type": "boolean",
+              "value": "={{ $json.body.data.key.fromMe }}"
+            },
+            {
+              "id": "new-inst-field-001",
+              "name": "instancia",
+              "type": "string",
+              "value": "={{ $json.body.instance }}"
+            },
+            {
+              "id": "opt-imgcaption-001",
+              "name": "imageCaption",
+              "type": "string",
+              "value": "={{ $json.body.data.message.imageMessage.caption || '' }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "1e63a307-cee7-4ada-8035-b97f87ef1a8a",
+      "name": "Obtener Datos",
+      "type": "n8n-nodes-base.set",
+      "position": [
+        -1248,
+        48
+      ],
+      "typeVersion": 3.4
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "a0468cf5-6bcb-4d13-90a6-fb30deae148e",
+              "name": "entradaIA",
+              "value": "={{ $json.text }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -160,
+        -128
+      ],
+      "id": "6266761b-7dd2-4b86-9086-8db0beea2427",
+      "name": "Renombrar1"
+    },
+    {
+      "parameters": {
+        "resource": "image",
+        "operation": "analyze",
+        "modelId": {
+          "__rl": true,
+          "value": "gpt-4o-mini",
+          "mode": "list",
+          "cachedResultName": "GPT-4O-MINI"
+        },
+        "text": "¿Qué hay en la imagen? Descríbela detalladamente",
+        "inputType": "base64",
+        "binaryPropertyName": "file",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 2.1,
+      "position": [
+        -160,
+        16
+      ],
+      "id": "93870126-dfb0-4931-a1ec-bf070c0a9996",
+      "name": "Analizar imagen",
+      "credentials": {
+        "openAiApi": {
+          "id": "PY0UVhwlgAabSE6I",
+          "name": "OpenAi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "11223344-5566-7788-99aa-bbccddeeff00",
+              "leftValue": "={{ $json.fromMe }}",
+              "rightValue": false,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        -1072,
+        48
+      ],
+      "id": "7656d62f-9002-48b0-9bc3-d83bba2abfd6",
+      "name": "If"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        -1056,
+        288
+      ],
+      "id": "2c73a53b-176a-44d8-a1ad-d97f310d569d",
+      "name": "No acción 1"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        1248,
+        48
+      ],
+      "id": "88165165-17aa-4bc8-9f26-3ea82d85d2df",
+      "name": "No acción 2"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        784,
+        416
+      ],
+      "id": "429e51c7-6ba5-474e-92a8-9c94ddb04c44",
+      "name": "Esperar",
+      "webhookId": "6f82c67a-646c-40e7-99fb-9ee87c5c77da"
+    },
+    {
+      "parameters": {
+        "operation": "toBinary",
+        "sourceProperty": "data.base64",
+        "options": {
+          "mimeType": "audio/mp3"
+        }
+      },
+      "type": "n8n-nodes-base.convertToFile",
+      "typeVersion": 1.1,
+      "position": [
+        -320,
+        192
+      ],
+      "id": "4a9b63fe-7e69-4d9a-b036-d1aae98c3ebc",
+      "name": "base64 a audio"
+    },
+    {
+      "parameters": {
+        "resource": "chat-api",
+        "operation": "get-media-base64",
+        "instanceName": "={{ $('Webhook').first().json.body.instance }}",
+        "messageId": "={{ $json.key_id }}"
+      },
+      "type": "n8n-nodes-evolution-api.evolutionApi",
+      "typeVersion": 1,
+      "position": [
+        -512,
+        192
+      ],
+      "id": "c6d08df7-6d59-4f74-8af7-7dac9b83aa47",
+      "name": "audio a base64",
+      "credentials": {
+        "evolutionApi": {
+          "id": "eUGAJmc2zcXSn99R",
+          "name": "Evolution account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "chat-api",
+        "operation": "get-media-base64",
+        "instanceName": "={{ $('Webhook').first().json.body.instance }}",
+        "messageId": "={{ $json.key_id }}"
+      },
+      "type": "n8n-nodes-evolution-api.evolutionApi",
+      "typeVersion": 1,
+      "position": [
+        -512,
+        16
+      ],
+      "id": "7d2270a9-8151-4aca-a450-9904099efd1c",
+      "name": "imagen a base64",
+      "credentials": {
+        "evolutionApi": {
+          "id": "eUGAJmc2zcXSn99R",
+          "name": "Evolution account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "chat-api",
+        "operation": "get-media-base64",
+        "instanceName": "={{ $('Webhook').first().json.body.instance }}",
+        "messageId": "={{ $json.key_id }}"
+      },
+      "type": "n8n-nodes-evolution-api.evolutionApi",
+      "typeVersion": 1,
+      "position": [
+        -512,
+        352
+      ],
+      "id": "0d26b3b1-3100-4a9b-8645-a50625254d5a",
+      "name": "documento a base64",
+      "credentials": {
+        "evolutionApi": {
+          "id": "eUGAJmc2zcXSn99R",
+          "name": "Evolution account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "toBinary",
+        "sourceProperty": "data.base64",
+        "binaryPropertyName": "file",
+        "options": {
+          "fileName": "data"
+        }
+      },
+      "type": "n8n-nodes-base.convertToFile",
+      "typeVersion": 1.1,
+      "position": [
+        -336,
+        16
+      ],
+      "id": "cb64f0f1-aed6-4f4e-8db1-e710ec3b146e",
+      "name": "base64 a imagen"
+    },
+    {
+      "parameters": {
+        "operation": "toBinary",
+        "sourceProperty": "data.base64",
+        "binaryPropertyName": "entradaIA",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.convertToFile",
+      "typeVersion": 1.1,
+      "position": [
+        -304,
+        352
+      ],
+      "id": "5bc05d38-6132-4cd6-bc7b-a8e249e9d55b",
+      "name": "base64 a doc"
+    },
+    {
+      "parameters": {
+        "resource": "audio",
+        "operation": "transcribe",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 2,
+      "position": [
+        -144,
+        192
+      ],
+      "id": "6e4dd4a9-bc85-4198-97c1-83c8f54a4d6d",
+      "name": "Transcribir audio",
+      "credentials": {
+        "openAiApi": {
+          "id": "PY0UVhwlgAabSE6I",
+          "name": "OpenAi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "24e5505f-dffc-4381-bf4f-355050200b07",
+              "name": "entradaIA",
+              "value": "Se recibió un sticker",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -512,
+        544
+      ],
+      "id": "5ce36ec0-03f1-44d7-831b-563ce9b5f63f",
+      "name": "Edit Fields"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "962b1277-b634-454d-a2f1-0f03c2e52002",
+              "name": "entradaIA",
+              "value": "={{ $json.text }}",
+              "type": "string"
+            },
+            {
+              "id": "r3-number-field",
+              "name": "number",
+              "value": "={{$('Obtener Datos') .first().json.number }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        32,
+        192
+      ],
+      "id": "01dc48dc-0464-448d-b6c0-4949dfe3d12d",
+      "name": "Renombrar3"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "1526bd12-a0d9-490b-93b4-65660cd89994",
+              "name": "entradaIA",
+              "value": "={{ $('Obtener Datos').first().json.imageCaption ? $('Obtener Datos').first().json.imageCaption + '\\n' + $json['0'].content[0].text : $json['0'].content[0].text }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        16,
+        16
+      ],
+      "id": "3a94b07b-ac61-44a4-84c7-1638b1d8a913",
+      "name": "Renombrar2"
+    },
+    {
+      "parameters": {
+        "sessionIdType": "customKey",
+        "sessionKey": "={{ $json.sessionId }}",
+        "contextWindowLength": 10
+      },
+      "type": "@n8n/n8n-nodes-langchain.memoryPostgresChat",
+      "typeVersion": 1.3,
+      "position": [
+        1824,
+        384
+      ],
+      "id": "f3d843b5-f72e-48cc-9c20-9e14be51999d",
+      "name": "Postgres Chat Memory",
+      "credentials": {
+        "postgres": {
+          "id": "Lfrl6zIyHQBNIENd",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const configRows = $input.all();\nconst parts = [];\nlet numero_admin     = '';\nlet correo_admin     = '';\nlet grupo_whatsapp   = '';\nlet modo_prueba      = false;\nlet horario_inicio   = '10:00 AM';\nlet horario_fin      = '5:00 PM';\nlet duracion_reunion = '30';\nlet nombre_agente    = 'Nova';\nlet nombre_empresa   = '';\n\nconst RESERVADOS = new Set([\n  'numero_admin','correo_admin','grupo_whatsapp','modo_prueba',\n  'horario_inicio','horario_fin','duracion_reunion',\n  'nombre_agente','nombre_empresa'\n]);\n\nfor (const row of configRows) {\n  const campo = row.json['campo'];\n  const valor = row.json['valor'];\n  if (!campo || !valor) continue;\n\n  switch (campo) {\n    case 'numero_admin':     numero_admin     = String(valor).trim(); break;\n    case 'correo_admin':     correo_admin     = String(valor).trim(); break;\n    case 'grupo_whatsapp':   grupo_whatsapp   = String(valor).trim(); break;\n    case 'modo_prueba':      modo_prueba      = String(valor).trim().toLowerCase() === 'true'; break;\n    case 'horario_inicio':   horario_inicio   = String(valor).trim(); break;\n    case 'horario_fin':      horario_fin      = String(valor).trim(); break;\n    case 'duracion_reunion': duracion_reunion = String(valor).trim(); break;\n    case 'nombre_agente':    nombre_agente    = String(valor).trim(); break;\n    case 'nombre_empresa':   nombre_empresa   = String(valor).trim(); break;\n    default:\n      if (!RESERVADOS.has(campo)) parts.push(`${campo}: ${valor}`);\n  }\n}\n\nconst businessInfo = parts.join('\\n');\nconst originalMsg  = $('If').first().json;\n\nreturn [{\n  json: {\n    ...originalMsg,\n    businessInfo,\n    numero_admin,\n    correo_admin,\n    grupo_whatsapp,\n    modo_prueba,\n    horario_inicio,\n    horario_fin,\n    duracion_reunion,\n    nombre_agente,\n    nombre_empresa\n  },\n  pairedItem: { item: 0 }\n}];"
+      },
+      "id": "718d74b6-133b-4fa5-b18d-830843cc1f00",
+      "name": "Formatear config",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -784,
+        -256
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "{\"status\": \"ok\"}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        -1408,
+        48
+      ],
+      "id": "e1702c53-fc1b-4d09-b1e2-fbd4e638c8d0",
+      "name": "Webhook Response"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "filtro-001",
+              "leftValue": "={{ $json.modo_prueba }}",
+              "rightValue": false,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            },
+            {
+              "id": "filtro-002",
+              "leftValue": "={{ $json.number.split('@')[0] }}",
+              "rightValue": "={{ $json.numero_admin }}",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "or"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        -624,
+        -256
+      ],
+      "id": "4939cbe5-5f5f-4ecd-b1fb-a1fa2e47fcee",
+      "name": "Filtro modo prueba"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        -448,
+        -256
+      ],
+      "id": "634b1ce1-b099-49e0-837d-c5ff5c042f7d",
+      "name": "No acción prueba"
+    },
+    {
+      "parameters": {
+        "jsCode": "// ── Helpers ──────────────────────────────────────────\nfunction formatearFecha(iso) {\n  if (!iso) return '';\n  const match = iso.match(/(\\d{4})-(\\d{2})-(\\d{2})T(\\d{2}):(\\d{2})/);\n  if (!match) return iso;\n  const [, anio, mesNum, dia, horaRaw, min] = match;\n  const dias  = ['Domingo','Lunes','Martes','Miércoles','Jueves','Viernes','Sábado'];\n  const meses = ['enero','febrero','marzo','abril','mayo','junio',\n                 'julio','agosto','septiembre','octubre','noviembre','diciembre'];\n  const fecha    = new Date(iso);\n  const offsetMs = -6 * 60 * 60 * 1000;\n  const local    = new Date(fecha.getTime() + offsetMs - fecha.getTimezoneOffset() * 60000);\n  const diaSemana = dias[local.getDay()];\n  const mesNombre = meses[parseInt(mesNum, 10) - 1];\n  let hora = parseInt(horaRaw, 10);\n  const ampm  = hora >= 12 ? 'PM' : 'AM';\n  hora = hora % 12 || 12;\n  const minStr = min === '00' ? '' : `:${min}`;\n  return `${diaSemana} ${parseInt(dia, 10)} de ${mesNombre} ${anio} a las ${hora}${minStr} ${ampm}`;\n}\n\n// FIX B: parsear observation sin importar si llega\n// como string, array, objeto, o envuelto en {json:{}}\nfunction extraerEvento(obs) {\n  if (!obs) return null;\n  // Parsear si es string\n  let parsed = obs;\n  if (typeof obs === 'string') {\n    try { parsed = JSON.parse(obs); } catch(e) { return null; }\n  }\n  // Normalizar a array\n  const arr = Array.isArray(parsed) ? parsed : [parsed];\n  if (arr.length === 0) return null;\n  const item = arr[0];\n  // Manejar wrapper {json:{...}} de n8n\n  return item?.json ? item.json : item;\n}\n\n// FIX A: config y nombre_agente declarados PRIMERO\n// (antes de construir mensajeEmail que los usa)\nconst config        = $('Formatear config').first().json;\nconst nombre_agente = config.nombre_agente || 'Nova';\n\n// ── Leer steps ────────────────────────────────────────\nconst steps = $('AI Agent').first().json.intermediateSteps || [];\nlet agendoCita      = false;\nlet canceloCita     = false;\nlet citaAgendada    = {};\nlet eventoCancelado = {};\nlet googleEventId   = '';\n\nfor (let i = 0; i < steps.length; i++) {\n  const tool = steps[i]?.action?.tool || '';\n\n  if (tool === 'agendar_cita') {\n    agendoCita   = true;\n    citaAgendada = steps[i].action.toolInput || {};\n    // Extraer googleEventId del observation de la herramienta\n    let obsGA = steps[i].observation;\n    if (typeof obsGA === 'string') { try { obsGA = JSON.parse(obsGA); } catch(e) {} }\n    if (Array.isArray(obsGA)) obsGA = obsGA[0];\n    if (obsGA && obsGA.json) obsGA = obsGA.json;\n    googleEventId = (obsGA && obsGA.id) ? obsGA.id : '';\n  }\n\n  if (tool === 'cancelar_cita') {\n    canceloCita = true;\n    // Buscar hacia atrás el observation de consultar_citas más cercano\n    for (let j = i - 1; j >= 0; j--) {\n      if (steps[j]?.action?.tool === 'consultar_citas') {\n        const evento = extraerEvento(steps[j].observation);\n        if (evento) eventoCancelado = evento;\n        break;\n      }\n    }\n  }\n}\n\n// ── Tipo de evento ────────────────────────────────────\nlet tipoEvento = 'ninguno';\nif      (agendoCita && canceloCita) tipoEvento = 'reagendada';\nelse if (agendoCita)                tipoEvento = 'nueva';\nelse if (canceloCita)               tipoEvento = 'cancelada';\n\n// ── Datos del evento agendado ─────────────────────────\nconst summaryAgenda = citaAgendada.Summary     || '';\nconst startFmt      = formatearFecha(citaAgendada.Start);\nconst endFmt        = formatearFecha(citaAgendada.End);\nconst description   = citaAgendada.Description || '';\n\n// ── Datos del evento cancelado ────────────────────────\nconst summaryCancela  = eventoCancelado?.summary      || eventoCancelado?.Summary      || summaryAgenda || '';\nconst startCancelaISO = eventoCancelado?.start?.dateTime || eventoCancelado?.start?.date || eventoCancelado?.start || citaAgendada.Start || '';\nconst endCancelaISO   = eventoCancelado?.end?.dateTime   || eventoCancelado?.end?.date   || eventoCancelado?.end   || citaAgendada.End   || '';\nconst startCancelaFmt = formatearFecha(startCancelaISO);\nconst endCancelaFmt   = formatearFecha(endCancelaISO);\nconst descCancela     = eventoCancelado?.description  || eventoCancelado?.Description  || description  || '';\n\n// ── Construir mensajes ────────────────────────────────\nlet encabezadoWA = '', encabezadoEmail = '', cuerpoEmail = '';\nlet summaryMsg = '', startMsg = '', endMsg = '', descMsg = '';\n\nif (tipoEvento === 'nueva') {\n  encabezadoWA    = '📅 *Nueva cita agendada*';\n  encabezadoEmail = '📅 Nueva cita agendada';\n  cuerpoEmail     = 'Se agendó una nueva cita en el calendario.';\n  summaryMsg = summaryAgenda; startMsg = startFmt; endMsg = endFmt; descMsg = description;\n\n} else if (tipoEvento === 'reagendada') {\n  encabezadoWA    = '🔄 *Cita reagendada*';\n  encabezadoEmail = '🔄 Cita reagendada';\n  cuerpoEmail     = 'Una cita fue reagendada a un nuevo horario.';\n  summaryMsg = summaryAgenda; startMsg = startFmt; endMsg = endFmt; descMsg = description;\n\n} else if (tipoEvento === 'cancelada') {\n  encabezadoWA    = '❌ *Cita cancelada*';\n  encabezadoEmail = '❌ Cita cancelada';\n  cuerpoEmail     = 'Una cita fue cancelada.';\n  summaryMsg = summaryCancela; startMsg = startCancelaFmt; endMsg = endCancelaFmt; descMsg = descCancela;\n}\n\nconst mensajeWA = tipoEvento !== 'ninguno'\n  ? `${encabezadoWA}\\n\\n👤 ${summaryMsg}\\n📅 ${startMsg}\\n⏰ Fin: ${endMsg}\\n💼 ${descMsg}`\n  : '';\n\n// FIX A: ${nombre_agente} dentro del template literal (no + concatenación)\nconst mensajeEmail = tipoEvento !== 'ninguno'\n  ? `${cuerpoEmail}\\n\\n👤 Cliente: ${summaryMsg}\\n📅 Inicio: ${startMsg}\\n⏰ Fin: ${endMsg}\\n💼 Detalle: ${descMsg}\\n\\nEste mensaje fue generado automáticamente por ${nombre_agente}.`\n  : '';\n\nconst asuntoEmail = `${encabezadoEmail} — ${summaryMsg}`;\n\nreturn [{\n  json: {\n    tipoEvento,\n    mensajeWA,\n    mensajeEmail,\n    asuntoEmail,\n    numero_admin  : config.numero_admin   || '',\n    correo_admin  : config.correo_admin   || '',\n    grupo_whatsapp: config.grupo_whatsapp || '',\n    googleEventId,\n    citaStartISO  : citaAgendada.Start || (citaAgendada.start && citaAgendada.start.dateTime) || '',\n    citaEndISO    : citaAgendada.End   || (citaAgendada.end   && citaAgendada.end.dateTime)   || ''\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2560,
+        192
+      ],
+      "id": "cca971ef-6075-4c70-bde5-6f95e423fb9d",
+      "name": "Revisar si se agendó"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "if-cita-001",
+              "leftValue": "={{ $json.tipoEvento }}",
+              "rightValue": "ninguno",
+              "operator": {
+                "type": "string",
+                "operation": "notEquals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        2736,
+        192
+      ],
+      "id": "24200fca-c295-4fe6-b775-83dc01abd219",
+      "name": "¿Se agendó cita?"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=http://evolution_evolution-api:8080/message/sendText/{{ $('Webhook').first().json.body.instance }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "evolutionApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "content-type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "number",
+              "value": "={{ $json.numero_admin }}"
+            },
+            {
+              "name": "text",
+              "value": "={{ $json.mensajeWA }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        3024,
+        160
+      ],
+      "id": "e403797c-e68e-4e13-ac8c-fa1d1e0803c1",
+      "name": "Notificar admin",
+      "credentials": {
+        "evolutionApi": {
+          "id": "eUGAJmc2zcXSn99R",
+          "name": "Evolution account"
+        }
+      }
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        3024,
+        496
+      ],
+      "id": "3f4bfddf-b7d8-42e4-acbc-6af3cc5c2b28",
+      "name": "Sin cita nueva"
+    },
+    {
+      "parameters": {
+        "sendTo": "={{ $json.correo_admin }}",
+        "subject": "={{ $json.asuntoEmail }}",
+        "emailType": "text",
+        "message": "={{ $json.mensajeEmail }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        3024,
+        -16
+      ],
+      "id": "4250894a-a88c-4719-825e-1c1ed3de0bb4",
+      "name": "Notificar por Gmail",
+      "webhookId": "f37878c9-592a-4df8-a0f2-cc034d68f2f8",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "mjTtt0qPN55BvNQ3",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=http://evolution_evolution-api:8080/message/sendText/Isaac",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "evolutionApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "content-type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "number",
+              "value": "={{ $('Revisar si se agendó').item.json.grupo_whatsapp }}"
+            },
+            {
+              "name": "text",
+              "value": "={{ $('Revisar si se agendó').item.json.mensajeWA }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        3024,
+        320
+      ],
+      "id": "f1eb4b26-6390-4cf8-9ddc-9b402df74fc7",
+      "name": "Notificar grupo WhatsApp",
+      "credentials": {
+        "evolutionApi": {
+          "id": "eUGAJmc2zcXSn99R",
+          "name": "Evolution account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const item = $input.first().json;\nconst output = item.output || '';\nconst limpio = output.replace(/^\\[Used tools:[\\s\\S]*?\\]\\s*/m, '').trim();\nreturn [{ json: { ...item, output: limpio } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2032,
+        192
+      ],
+      "id": "915f039b-4dc5-472c-bf81-4f50520d94a4",
+      "name": "limpiar output"
+    },
+    {
+      "id": "new-carga-config-001",
+      "name": "Cargar Config Empresa",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        -960,
+        -256
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT cn.campo, cn.valor FROM config_negocio cn INNER JOIN instancias_whatsapp iw ON iw.empresa_id = cn.empresa_id WHERE iw.evolution_instance_name = '{{ $('Obtener Datos').first().json.instancia }}' AND iw.activa = true ORDER BY cn.campo",
+        "options": {}
+      },
+      "credentials": {
+        "postgres": {
+          "id": "K5n9gkXNz50wgMfP",
+          "name": "PostgreSQL — ChatbotSKC"
+        }
+      }
+    },
+    {
+      "id": "new-verif-dup-001",
+      "name": "Verificar Duplicado",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        -960,
+        48
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT COUNT(*) AS cnt FROM mensajes WHERE key_id = '{{ $('Obtener Datos').first().json.key_id }}'",
+        "options": {}
+      },
+      "credentials": {
+        "postgres": {
+          "id": "K5n9gkXNz50wgMfP",
+          "name": "PostgreSQL — ChatbotSKC"
+        }
+      }
+    },
+    {
+      "id": "new-if-dup-001",
+      "name": "IF Duplicado",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -784,
+        48
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "dup-cond-001",
+              "leftValue": "={{ Number($json.cnt) }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      }
+    },
+    {
+      "id": "new-no-dup-001",
+      "name": "No Acción Duplicado",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        -784,
+        288
+      ],
+      "parameters": {}
+    },
+    {
+      "id": "new-rename-doc-001",
+      "name": "Renombrar doc",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -144,
+        352
+      ],
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "rd-001",
+              "name": "entradaIA",
+              "value": "={{ $json.text ? '[PDF recibido]\\n' + $json.text : 'Se recibió un documento' }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "new-upsert-usr-001",
+      "name": "Upsert Usuario",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        2576,
+        400
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO usuarios (empresa_id, numero_whatsapp, nombre_display) SELECT iw.empresa_id, '{{ $('Edit Fields5').first().json.number }}@s.whatsapp.net', '{{ $('Obtener Datos').first().json.name }}' FROM instancias_whatsapp iw WHERE iw.evolution_instance_name = '{{ $('Obtener Datos').first().json.instancia }}' AND iw.activa = true LIMIT 1 ON CONFLICT (empresa_id, numero_whatsapp) DO UPDATE SET nombre_display = EXCLUDED.nombre_display, ultimo_contacto = NOW()",
+        "options": {}
+      },
+      "credentials": {
+        "postgres": {
+          "id": "K5n9gkXNz50wgMfP",
+          "name": "PostgreSQL — ChatbotSKC"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "id": "new-guardar-msg-001",
+      "name": "Guardar Mensaje",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        2576,
+        560
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO mensajes (empresa_id, key_id, direccion, contenido, tipo_contenido, procesado)\nSELECT iw.empresa_id,\n  '{{ $('Obtener Datos').first().json.key_id }}',\n  'entrada',\n  '{{ $('Edit Fields5').first().json.entradaIA.replace(/'/g, \"''\") }}',\n  'texto',\n  true\nFROM instancias_whatsapp iw\nWHERE iw.evolution_instance_name = '{{ $('Obtener Datos').first().json.instancia }}'\n  AND iw.activa = true\nLIMIT 1\nON CONFLICT (key_id) DO NOTHING",
+        "options": {}
+      },
+      "credentials": {
+        "postgres": {
+          "id": "K5n9gkXNz50wgMfP",
+          "name": "PostgreSQL — ChatbotSKC"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "id": "new-sync-cita-001",
+      "name": "Sync Cita BD",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        3024,
+        640
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT CASE\n  WHEN '{{ $json.tipoEvento }}' = 'nueva' OR '{{ $json.tipoEvento }}' = 'reagendada' THEN\n    registrar_cita(\n      (SELECT empresa_id FROM instancias_whatsapp\n       WHERE evolution_instance_name = '{{ $('Obtener Datos').first().json.instancia }}' LIMIT 1),\n      (SELECT id FROM usuarios\n       WHERE numero_limpio = '{{ $('Obtener Datos').first().json.number }}' LIMIT 1),\n      '{{ $json.googleEventId }}',\n      '{{ $('Formatear config').first().json.correo_admin }}',\n      '{{ $json.asuntoEmail }}',\n      '{{ $json.citaStartISO }}'::timestamptz,\n      '{{ $json.citaEndISO }}'::timestamptz\n    )::text\n  ELSE 'no_accion'\nEND AS resultado",
+        "options": {}
+      },
+      "credentials": {
+        "postgres": {
+          "id": "K5n9gkXNz50wgMfP",
+          "name": "PostgreSQL — ChatbotSKC"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "id": "opt-buscar-slots-001",
+      "name": "buscar_slots",
+      "type": "@n8n/n8n-nodes-langchain.toolCode",
+      "typeVersion": 1.1,
+      "position": [
+        2048,
+        640
+      ],
+      "parameters": {
+        "name": "buscar_slots_disponibles",
+        "description": "Genera horarios disponibles para agendar. Usa esto ANTES de agendar para mostrar opciones al usuario. Proporciona fecha_desde y fecha_hasta en formato YYYY-MM-DD.",
+        "jsCode": "const fechaDesde = $fromAI('fecha_desde', 'Fecha inicio búsqueda YYYY-MM-DD', 'string');\nconst fechaHasta = $fromAI('fecha_hasta', 'Fecha fin búsqueda YYYY-MM-DD', 'string');\nconst horaInicioStr = $fromAI('hora_inicio', 'Hora inicio en formato HH:MM, default 10:00', 'string') || '10:00';\nconst horaFinStr = $fromAI('hora_fin', 'Hora fin en formato HH:MM, default 17:00', 'string') || '17:00';\nconst duracionMin = parseInt($fromAI('duracion_minutos', 'Duración en minutos, default 30', 'string') || '30');\n\nconst [hIni, mIni] = horaInicioStr.split(':').map(Number);\nconst [hFin, mFin] = horaFinStr.split(':').map(Number);\nconst ahora = new Date();\n\nconst slots = [];\nlet fecha = new Date(fechaDesde + 'T12:00:00Z');\nconst limite = new Date(fechaHasta + 'T12:00:00Z');\n\nwhile (fecha <= limite && slots.length < 10) {\n  const dow = fecha.getDay();\n  if (dow !== 0 && dow !== 6) {\n    for (let h = hIni; h < hFin && slots.length < 10; h++) {\n      const mStart = (h === hIni) ? mIni : 0;\n      for (let m = mStart; m + duracionMin <= hFin * 60 + mFin && slots.length < 10; m += duracionMin) {\n        const slotStr = `${fecha.toISOString().slice(0,10)}T${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:00`;\n        const slotDate = new Date(slotStr + '-06:00');\n        if (slotDate > ahora) {\n          const slotEnd = new Date(slotDate.getTime() + duracionMin * 60000);\n          slots.push({\n            inicio: slotDate.toISOString(),\n            fin: slotEnd.toISOString(),\n            display: slotDate.toLocaleString('es-MX', { weekday:'short', month:'short', day:'numeric', hour:'2-digit', minute:'2-digit', timeZone:'America/Mexico_City' })\n          });\n        }\n      }\n    }\n  }\n  fecha.setDate(fecha.getDate() + 1);\n}\n\nif (slots.length === 0) return 'No hay horarios disponibles en el rango indicado.';\nreturn 'Horarios disponibles:\\n' + slots.map((s, i) => `${i+1}. ${s.display}`).join('\\n');"
+      }
+    },
+    {
+      "id": "opt-extract-pdf-001",
+      "name": "Extract PDF",
+      "type": "n8n-nodes-base.extractFromFile",
+      "typeVersion": 1,
+      "position": [
+        -144,
+        512
+      ],
+      "parameters": {
+        "operation": "pdf",
+        "binaryPropertyName": "entradaIA"
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "id": "opt-reg-error-001",
+      "name": "Registrar Error",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        1728,
+        480
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO error_log (empresa_id, error_code, origen, mensaje)\nSELECT iw.empresa_id,\n  'AI_AGENT_ERROR',\n  'AI Agent',\n  left('{{ $json.error?.message || $json.message || 'Error desconocido' }}', 500)\nFROM instancias_whatsapp iw\nWHERE iw.evolution_instance_name = '{{ $('Obtener Datos').first().json.instancia }}'\n  AND iw.activa = true\nLIMIT 1",
+        "options": {}
+      },
+      "credentials": {
+        "postgres": {
+          "id": "K5n9gkXNz50wgMfP",
+          "name": "PostgreSQL — ChatbotSKC"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "id": "rl2-cooldown-get",
+      "name": "RL Cooldown GET",
+      "type": "n8n-nodes-base.redis",
+      "typeVersion": 1,
+      "position": [
+        -580,
+        48
+      ],
+      "parameters": {
+        "operation": "get",
+        "key": "={{ 'zura:rl:cooldown:' + $('Obtener Datos').first().json.number.split('@')[0] }}",
+        "propertyName": "cooldown",
+        "options": {}
+      },
+      "credentials": {
+        "redis": {
+          "id": "WREkKb8SQFf4pN1u",
+          "name": "Redis account"
+        }
+      }
+    },
+    {
+      "id": "rl2-if-cooldown",
+      "name": "IF Cooldown",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -380,
+        48
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "rl2-cond-cool",
+              "leftValue": "={{ $json.cooldown }}",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      }
+    },
+    {
+      "id": "rl2-aviso-cooldown",
+      "name": "Aviso Cooldown",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        -380,
+        260
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "=http://evolution_evolution-api:8080/message/sendText/{{ $('Webhook').first().json.body.instance }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "evolutionApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "content-type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "number",
+              "value": "={{ $('Obtener Datos').first().json.number }}"
+            },
+            {
+              "name": "text",
+              "value": "Hola 😊 Llevamos una conversación muy larga hoy. Escríbeme en unos minutos, ¡aquí estaré cuando regreses!"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "credentials": {
+        "evolutionApi": {
+          "id": "eUGAJmc2zcXSn99R",
+          "name": "Evolution account"
+        }
+      }
+    },
+    {
+      "id": "rl2-burst-get",
+      "name": "RL Burst GET",
+      "type": "n8n-nodes-base.redis",
+      "typeVersion": 1,
+      "position": [
+        -160,
+        48
+      ],
+      "parameters": {
+        "operation": "get",
+        "key": "={{ 'zura:rl:burst:' + $('Obtener Datos').first().json.number.split('@')[0] }}",
+        "propertyName": "burst",
+        "options": {}
+      },
+      "credentials": {
+        "redis": {
+          "id": "WREkKb8SQFf4pN1u",
+          "name": "Redis account"
+        }
+      }
+    },
+    {
+      "id": "rl2-if-burst",
+      "name": "IF Burst",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        60,
+        48
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "rl2-cond-burst",
+              "leftValue": "={{ Number($json.burst) }}",
+              "rightValue": 15,
+              "operator": {
+                "type": "number",
+                "operation": "gte"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      }
+    },
+    {
+      "id": "rl2-aviso-burst",
+      "name": "Aviso Burst",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        60,
+        260
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "=http://evolution_evolution-api:8080/message/sendText/{{ $('Webhook').first().json.body.instance }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "evolutionApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "content-type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "number",
+              "value": "={{ $('Obtener Datos').first().json.number }}"
+            },
+            {
+              "name": "text",
+              "value": "¡Vas muy rápido! ⚡ Espera un momento y escríbeme de nuevo 😊"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "credentials": {
+        "evolutionApi": {
+          "id": "eUGAJmc2zcXSn99R",
+          "name": "Evolution account"
+        }
+      }
+    },
+    {
+      "id": "rl2-session-get",
+      "name": "RL Session GET",
+      "type": "n8n-nodes-base.redis",
+      "typeVersion": 1,
+      "position": [
+        280,
+        48
+      ],
+      "parameters": {
+        "operation": "get",
+        "key": "={{ 'zura:rl:session:' + $('Obtener Datos').first().json.number.split('@')[0] }}",
+        "propertyName": "session",
+        "options": {}
+      },
+      "credentials": {
+        "redis": {
+          "id": "WREkKb8SQFf4pN1u",
+          "name": "Redis account"
+        }
+      }
+    },
+    {
+      "id": "rl2-if-session",
+      "name": "IF Session",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        480,
+        48
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "rl2-cond-sess",
+              "leftValue": "={{ Number($json.session) }}",
+              "rightValue": 50,
+              "operator": {
+                "type": "number",
+                "operation": "gte"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      }
+    },
+    {
+      "id": "rl2-set-cooldown",
+      "name": "RL Set Cooldown",
+      "type": "n8n-nodes-base.redis",
+      "typeVersion": 1,
+      "position": [
+        480,
+        260
+      ],
+      "parameters": {
+        "operation": "set",
+        "key": "={{ 'zura:rl:cooldown:' + $('Obtener Datos').first().json.number.split('@')[0] }}",
+        "value": "1",
+        "keyType": "string",
+        "expire": true,
+        "ttl": 600
+      },
+      "credentials": {
+        "redis": {
+          "id": "WREkKb8SQFf4pN1u",
+          "name": "Redis account"
+        }
+      }
+    },
+    {
+      "id": "rl2-aviso-session",
+      "name": "Aviso Session",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        680,
+        260
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "=http://evolution_evolution-api:8080/message/sendText/{{ $('Webhook').first().json.body.instance }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "evolutionApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "content-type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "number",
+              "value": "={{ $('Obtener Datos').first().json.number }}"
+            },
+            {
+              "name": "text",
+              "value": "Hemos tenido una conversación muy larga hoy 😊 Tómate un respiro y escríbeme en 10 minutos, ¡aquí estaré!"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "credentials": {
+        "evolutionApi": {
+          "id": "eUGAJmc2zcXSn99R",
+          "name": "Evolution account"
+        }
+      }
+    },
+    {
+      "id": "rl2-burst-incr",
+      "name": "RL Burst INCR",
+      "type": "n8n-nodes-base.redis",
+      "typeVersion": 1,
+      "position": [
+        2576,
+        600
+      ],
+      "parameters": {
+        "operation": "incr",
+        "key": "={{ 'zura:rl:burst:' + $('Obtener Datos').first().json.number.split('@')[0] }}",
+        "propertyName": "burstCnt"
+      },
+      "credentials": {
+        "redis": {
+          "id": "WREkKb8SQFf4pN1u",
+          "name": "Redis account"
+        }
+      }
+    },
+    {
+      "id": "rl2-burst-ttl",
+      "name": "RL Burst TTL",
+      "type": "n8n-nodes-base.redis",
+      "typeVersion": 1,
+      "position": [
+        2576,
+        760
+      ],
+      "parameters": {
+        "operation": "set",
+        "key": "={{ 'zura:rl:burst:' + $('Obtener Datos').first().json.number.split('@')[0] }}",
+        "value": "={{ String(Number($json.burstCnt) || 1) }}",
+        "keyType": "string",
+        "expire": true,
+        "ttl": 60
+      },
+      "credentials": {
+        "redis": {
+          "id": "WREkKb8SQFf4pN1u",
+          "name": "Redis account"
+        }
+      }
+    },
+    {
+      "id": "rl2-session-incr",
+      "name": "RL Session INCR",
+      "type": "n8n-nodes-base.redis",
+      "typeVersion": 1,
+      "position": [
+        2776,
+        600
+      ],
+      "parameters": {
+        "operation": "incr",
+        "key": "={{ 'zura:rl:session:' + $('Obtener Datos').first().json.number.split('@')[0] }}",
+        "propertyName": "sessionCnt"
+      },
+      "credentials": {
+        "redis": {
+          "id": "WREkKb8SQFf4pN1u",
+          "name": "Redis account"
+        }
+      }
+    },
+    {
+      "id": "rl2-session-ttl",
+      "name": "RL Session TTL",
+      "type": "n8n-nodes-base.redis",
+      "typeVersion": 1,
+      "position": [
+        2776,
+        760
+      ],
+      "parameters": {
+        "operation": "set",
+        "key": "={{ 'zura:rl:session:' + $('Obtener Datos').first().json.number.split('@')[0] }}",
+        "value": "={{ String(Number($json.sessionCnt) || 1) }}",
+        "keyType": "string",
+        "expire": true,
+        "ttl": 1800
+      },
+      "credentials": {
+        "redis": {
+          "id": "WREkKb8SQFf4pN1u",
+          "name": "Redis account"
+        }
+      }
+    },
+    {
+      "id": "rl2-session-reset",
+      "name": "RL Session Reset",
+      "type": "n8n-nodes-base.redis",
+      "typeVersion": 1,
+      "position": [
+        2960,
+        320
+      ],
+      "parameters": {
+        "operation": "delete",
+        "key": "={{ 'zura:rl:session:' + $('Obtener Datos').first().json.number.split('@')[0] }}"
+      },
+      "credentials": {
+        "redis": {
+          "id": "WREkKb8SQFf4pN1u",
+          "name": "Redis account"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Webhook Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agent": {
+      "main": [
+        [
+          {
+            "node": "limpiar output",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Registrar Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent1",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agent1": {
+      "main": [
+        [
+          {
+            "node": "Edit Fields3",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Model2": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Edit Fields2": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Buffer": {
+      "main": [
+        [
+          {
+            "node": "Obtener datos buffer",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Obtener datos buffer": {
+      "main": [
+        [
+          {
+            "node": "Switch1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Switch1": {
+      "main": [
+        [
+          {
+            "node": "No acción 2",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Borrar buffer",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Esperar",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Borrar buffer": {
+      "main": [
+        [
+          {
+            "node": "Edit Fields5",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Switch Tipo Dato": {
+      "main": [
+        [
+          {
+            "node": "Renombrar1",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "imagen a base64",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "audio a base64",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "documento a base64",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Edit Fields",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Obtener Datos": {
+      "main": [
+        [
+          {
+            "node": "If",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Edit Fields5": {
+      "main": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Renombrar1": {
+      "main": [
+        [
+          {
+            "node": "Buffer",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Analizar imagen": {
+      "main": [
+        [
+          {
+            "node": "Renombrar2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If": {
+      "main": [
+        [
+          {
+            "node": "Verificar Duplicado",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "No acción 1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Esperar": {
+      "main": [
+        [
+          {
+            "node": "Obtener datos buffer",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "base64 a audio": {
+      "main": [
+        [
+          {
+            "node": "Transcribir audio",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "audio a base64": {
+      "main": [
+        [
+          {
+            "node": "base64 a audio",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "imagen a base64": {
+      "main": [
+        [
+          {
+            "node": "base64 a imagen",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "base64 a imagen": {
+      "main": [
+        [
+          {
+            "node": "Analizar imagen",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "documento a base64": {
+      "main": [
+        [
+          {
+            "node": "base64 a doc",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Transcribir audio": {
+      "main": [
+        [
+          {
+            "node": "Renombrar3",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Edit Fields": {
+      "main": [
+        [
+          {
+            "node": "Buffer",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Renombrar3": {
+      "main": [
+        [
+          {
+            "node": "Buffer",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Postgres Chat Memory": {
+      "ai_memory": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_memory",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Formatear config": {
+      "main": [
+        [
+          {
+            "node": "Filtro modo prueba",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Edit Fields3": {
+      "main": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "agendar_cita": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "cancelar_cita": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "consultar_citas": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook Response": {
+      "main": [
+        [
+          {
+            "node": "Obtener Datos",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filtro modo prueba": {
+      "main": [
+        [
+          {
+            "node": "Switch Tipo Dato",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "No acción prueba",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request": {
+      "main": [
+        [
+          {
+            "node": "Revisar si se agendó",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Upsert Usuario",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Guardar Mensaje",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "RL Burst INCR",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Revisar si se agendó": {
+      "main": [
+        [
+          {
+            "node": "¿Se agendó cita?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Se agendó cita?": {
+      "main": [
+        [
+          {
+            "node": "Notificar por Gmail",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Notificar admin",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Notificar grupo WhatsApp",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Sync Cita BD",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "RL Session Reset",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Sin cita nueva",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "limpiar output": {
+      "main": [
+        [
+          {
+            "node": "Edit Fields2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Cargar Config Empresa": {
+      "main": [
+        [
+          {
+            "node": "Formatear config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Verificar Duplicado": {
+      "main": [
+        [
+          {
+            "node": "IF Duplicado",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF Duplicado": {
+      "main": [
+        [
+          {
+            "node": "RL Cooldown GET",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "No Acción Duplicado",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Renombrar2": {
+      "main": [
+        [
+          {
+            "node": "AI Agent1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "base64 a doc": {
+      "main": [
+        [
+          {
+            "node": "Extract PDF",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Renombrar doc": {
+      "main": [
+        [
+          {
+            "node": "Buffer",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "buscar_slots": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract PDF": {
+      "main": [
+        [
+          {
+            "node": "Renombrar doc",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "RL Cooldown GET": {
+      "main": [
+        [
+          {
+            "node": "IF Cooldown",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF Cooldown": {
+      "main": [
+        [
+          {
+            "node": "Aviso Cooldown",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "RL Burst GET",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "RL Burst GET": {
+      "main": [
+        [
+          {
+            "node": "IF Burst",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF Burst": {
+      "main": [
+        [
+          {
+            "node": "Aviso Burst",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "RL Session GET",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "RL Session GET": {
+      "main": [
+        [
+          {
+            "node": "IF Session",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF Session": {
+      "main": [
+        [
+          {
+            "node": "RL Set Cooldown",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Cargar Config Empresa",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "RL Set Cooldown": {
+      "main": [
+        [
+          {
+            "node": "Aviso Session",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "RL Burst INCR": {
+      "main": [
+        [
+          {
+            "node": "RL Burst TTL",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "RL Burst TTL": {
+      "main": [
+        [
+          {
+            "node": "RL Session INCR",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "RL Session INCR": {
+      "main": [
+        [
+          {
+            "node": "RL Session TTL",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "timeSavedMode": "fixed",
+    "timezone": "America/Mexico_City",
+    "callerPolicy": "workflowsFromSameOwner",
+    "availableInMCP": false
+  },
+  "versionId": "f4opt-0000-0000-0000-000000000001",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "a60b45a2f4abda468d8ccbe183c5f8fbf4aed226d11ccdd1747d1cb0b26df984"
+  },
+  "tags": []
+}

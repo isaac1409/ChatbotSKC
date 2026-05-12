@@ -88,11 +88,7 @@ servicio en Easypanel — no hay `.env` en este repo.
   - Upsert de usuario en paralelo
 - **Sub-workflows generados:** Recordatorio 24h, Métricas Nocturnas, GCal Sync
 - **BD lista:** `database/*.sql` — DDL + triggers + funciones + migración
-- **Próximos pasos:**
-  1. Ejecutar `./scripts/init_db.sh` en producción
-  2. Actualizar `config_negocio` con valores reales
-  3. Importar `Chatbot_Principal_v2.json` en n8n (ver `CLEANUP.md`)
-  4. Ejecutar `./scripts/cleanup_repo.sh` para eliminar carpetas legacy
+- **Próximos pasos:** ver `docs/GUIA_IMPLEMENTACION.md` — pasos exactos sin romper producción
 - **Blockers conocidos:** Gmail OAuth2 pendiente de configurar en n8n
 
 > ⚠️ Actualizar esta sección cada vez que se retome el proyecto.
@@ -102,10 +98,13 @@ servicio en Easypanel — no hay `.env` en este repo.
 ## 🧠 Contexto técnico importante
 
 Leer antes de proponer cambios al workflow o a la configuración:
-- `docs/ARCHITECTURE.md` — diagrama de componentes, flujo de datos, schema de BD
+- `docs/GUIA_IMPLEMENTACION.md` — pasos exactos para implementar en Easypanel
+- `docs/VALIDACION_SEGURIDAD.md` — compatibilidad y riesgos del código generado
+- `docs/ROLLBACK.md` — qué hacer si algo falla
+- `docs/VALIDACIONES_POST.md` — cómo verificar que todo funciona
+- `docs/ARCHITECTURE.md` — diagrama de componentes y flujo de datos
 - `docs/TROUBLESHOOTING.md` — errores comunes y sus fixes
-- `docs/API_CONTRACTS.md` — formato del webhook de Evolution API y firmas de funciones PL/pgSQL
-- `docs/rollout/PLAN_ROLLOUT.md` — plan de rollout día a día con validaciones y rollback
+- `docs/API_CONTRACTS.md` — formato del webhook de Evolution API
 - `monitoring/queries_debug.sql` — queries de diagnóstico para producción
 
 **Decisiones clave que no deben revertirse:**

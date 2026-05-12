@@ -22,7 +22,7 @@ psql -c "SELECT error_code, origen, mensaje, created_at FROM error_log WHERE res
 **Síntomas:** Los mensajes llegan a Evolution API pero n8n no los procesa.
 
 **Verificar:**
-1. El workflow `Chatbot_Principal_v2` está activo (toggle ON)
+1. El workflow `Chatbot_Principal_v3` está activo (toggle ON)
 2. La URL del webhook en Evolution API apunta al dominio de n8n correcto:
    ```
    https://[n8n-dominio]/webhook/aa0cdd49-6d3b-4a28-a690-7be70d4ffe70
